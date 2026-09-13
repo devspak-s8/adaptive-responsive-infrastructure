@@ -25,9 +25,10 @@ const origin = env('NEXTAUTH_URL') || 'http://localhost:3000';
 const authSecret = env('AUTH_SECRET', true);
 const githubId = env('GITHUB_ID', true);
 const githubSecret = env('GITHUB_SECRET', true);
-const databaseUrl = process.env.NODE_ENV === 'production'
-  ? env('DATABASE_URL', true)
-  : env('DIRECT_URL') || env('DATABASE_URL', true);
+// The API uses Supabase's pooled connection. DIRECT_URL is reserved for
+// Prisma migrations and schema tooling, where a session/direct connection is
+// required.
+const databaseUrl = env('DATABASE_URL', true);
 const prisma = new PrismaClient({ datasourceUrl: databaseUrl });
 
 const authConfig: ExpressAuthConfig = {
@@ -45,7 +46,12 @@ const authConfig: ExpressAuthConfig = {
   // Keep provider profiles, email addresses, and adapter traces out of logs
   // shown by default. The server still records a non-sensitive error class.
   logger: {
-    error: (error) => console.error('[auth error]', error instanceof Error ? error.name : 'UnknownError'),
+    error: (error) => {
+      const code = error && typeof error === 'object' && 'code' in error
+        ? String((error as { code: unknown }).code)
+        : '';
+      console.error('[auth error]', error instanceof Error ? error.name : 'UnknownError', code ? `code=${code}` : '');
+    },
     warn: (code) => console.warn('[auth warning]', code),
   },
   providers: [GitHub({ clientId: githubId, clientSecret: githubSecret })],
