@@ -34,6 +34,13 @@ const faqs = [
   { q: 'Can I cancel a paid plan?', a: 'Yes. Bachs keeps access active through the current billing period. After it ends, the account returns to Free without deleting projects or history.' },
 ];
 
+const includedEverywhere = [
+  { title: 'Real viewport detection', detail: 'See the dimensions and routes where visitors actually encounter your interface.' },
+  { title: 'Responsive issue detection', detail: 'Catch overflow, collision, wrapping, and modal defects before they become incidents.' },
+  { title: 'Runtime adaptation', detail: 'Protect sessions immediately while your team reviews the permanent source fix.' },
+  { title: 'Dashboard visibility', detail: 'Keep issues, fixes, deployments, and activity in one workspace.' },
+];
+
 export const PricingView: React.FC<PricingViewProps> = ({ onNavigate, userSession }) => {
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const [checkoutLoading, setCheckoutLoading] = useState<PlanId | null>(null);
@@ -76,6 +83,15 @@ export const PricingView: React.FC<PricingViewProps> = ({ onNavigate, userSessio
           <p className="text-[11px] font-mono uppercase tracking-[0.18em] text-[#0B0B0B]/50">Simple usage-based pricing</p>
           <h1 className="mt-4 text-3xl sm:text-5xl md:text-6xl font-semibold tracking-tight leading-[1.08]">Find the problems. Prevent them. Let us handle them.</h1>
           <p className="mt-5 text-sm sm:text-base text-[#0B0B0B]/65 max-w-2xl mx-auto leading-relaxed">Every plan includes real viewport detection, responsive issue detection, and the dashboard. Upgrade for more projects, sessions, and automation.</p>
+        </section>
+
+        <section className="pb-14 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto">
+          <div className="rounded-md border border-[#0B0B0B]/15 bg-[#0B0B0B] text-[#F5F3EE] p-6 sm:p-8">
+            <div className="max-w-2xl"><p className="text-[11px] font-mono uppercase tracking-[0.16em] text-[#F5F3EE]/50">Included in every plan</p><h2 className="mt-3 text-2xl sm:text-3xl font-semibold tracking-tight">Start with visibility, then add protection.</h2><p className="mt-3 text-sm leading-relaxed text-[#F5F3EE]/65">Free is useful on a real project. Paid plans increase the amount you can monitor and the amount of automation Adaptive can safely handle.</p></div>
+            <div className="mt-7 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {includedEverywhere.map((feature) => <div key={feature.title} className="rounded-md border border-[#F5F3EE]/15 bg-[#F5F3EE]/[0.04] p-4"><Check className="w-4 h-4 text-[#F5F3EE]/70" /><h3 className="mt-3 text-sm font-medium">{feature.title}</h3><p className="mt-2 text-xs leading-relaxed text-[#F5F3EE]/55">{feature.detail}</p></div>)}
+            </div>
+          </div>
         </section>
 
         {checkoutError && <div role="alert" className="mx-4 sm:mx-6 lg:mx-auto max-w-6xl mb-6 border border-[#0B0B0B]/20 bg-[#0B0B0B]/[0.03] px-4 py-3 text-sm font-mono">{checkoutError}</div>}

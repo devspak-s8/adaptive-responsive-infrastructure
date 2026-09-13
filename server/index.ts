@@ -109,7 +109,16 @@ const requireUser = async (request: Request, response: Response): Promise<Sessio
 
 const currentSubscription = async (userId: string) => {
   const subscription = await prisma.subscription.findUnique({ where: { userId } });
-  return subscription ?? { plan: 'FREE' as const, status: 'ACTIVE' as const, currentPeriodEnd: null, cancelAtPeriodEnd: false };
+  return subscription ?? {
+    plan: 'FREE' as const,
+    status: 'ACTIVE' as const,
+    bachsCustomerId: null,
+    bachsSubscriptionId: null,
+    bachsProductId: null,
+    currentPeriodStart: null,
+    currentPeriodEnd: null,
+    cancelAtPeriodEnd: false,
+  };
 };
 
 const entitlementsFor = (subscription: EntitlementSource) => getEntitlements(subscription);
@@ -142,7 +151,7 @@ const errorMessage = (error: unknown): string => {
   return 'Something went wrong while processing your request.';
 };
 
-const bachsBaseUrl = () => (env('BACHS_API_BASE_URL') || 'https://api.bachs.io').replace(/\/$/, '');
+const bachsBaseUrl = () => (env('BACHS_API_BASE_URL') || 'https://api.bachs.io').replace(/\/+$/, '').replace(/\/v1$/, '');
 
 const bachsRequest = async (path: string, init: RequestInit = {}) => {
   const apiKey = env('BACHS_API_KEY', true);
@@ -170,9 +179,19 @@ const findString = (value: unknown, keys: string[]): string | null => {
   return null;
 };
 
+const findNestedString = (value: Record<string, unknown>, keys: string[]): string | null =>
+  findString(value, keys) ?? findString(value.data, keys) ?? findString(value.portal_session, keys);
+
+const findDate = (value: Record<string, unknown>, keys: string[]): Date | null => {
+  const raw = findNestedString(value, keys);
+  if (!raw) return null;
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
 const verifyBachsWebhook = (request: Request, rawBody: Buffer): boolean => {
   const secret = env('BACHS_WEBHOOK_SECRET');
-  const signature = request.header('X-Bachs-Signature-V2') ?? '';
+  const signature = request.header('X-Bachs-Signature') ?? request.header('X-Bachs-Signature-V2') ?? '';
   const timestamp = request.header('X-Bachs-Timestamp') ?? '';
   if (!secret || !signature || !timestamp) return false;
   const timestampNumber = Number(timestamp);
@@ -214,17 +233,27 @@ app.post('/api/billing/webhook', express.raw({ type: 'application/json', limit: 
   const eventType = findString(event, ['type', 'event_type']) ?? '';
   const data = (event.data && typeof event.data === 'object' ? event.data : {}) as Record<string, unknown>;
   const nested = (data.subscription && typeof data.subscription === 'object' ? data.subscription : data) as Record<string, unknown>;
-  const customerId = findString(nested, ['customer_id', 'customerId']) ?? findString(data, ['customer_id', 'customerId']);
-  const subscriptionId = findString(nested, ['subscription_id', 'subscriptionId', 'id']);
+  const customer = (data.customer && typeof data.customer === 'object' ? data.customer : {}) as Record<string, unknown>;
+  const customerId = findString(nested, ['customer_id', 'customerId'])
+    ?? findString(data, ['customer_id', 'customerId'])
+    ?? findString(customer, ['customer_id', 'customerId', 'id']);
+  const subscriptionId = findString(nested, ['subscription_id', 'subscriptionId', 'id'])
+    ?? findString(data, ['subscription_id', 'subscriptionId']);
   const productId = findString(nested, ['product_id', 'productId']) ?? findString(data, ['product_id', 'productId']);
-  const email = findString(nested, ['email', 'customer_email']) ?? findString(data, ['email', 'customer_email']);
-  const matchingUser = email
-    ? await prisma.user.findFirst({ where: { email } })
-    : customerId
-      ? (await prisma.subscription.findUnique({ where: { bachsCustomerId: customerId }, include: { user: true } }))?.user
-      : subscriptionId
-        ? (await prisma.subscription.findUnique({ where: { bachsSubscriptionId: subscriptionId }, include: { user: true } }))?.user
-        : null;
+  const email = findString(nested, ['email', 'customer_email'])
+    ?? findString(data, ['email', 'customer_email'])
+    ?? findString(customer, ['email', 'customer_email']);
+  const metadata = (nested.metadata && typeof nested.metadata === 'object' ? nested.metadata : data.metadata) as Record<string, unknown> | undefined;
+  const userId = findString(metadata, ['user_id', 'userId']);
+  const matchingUser = userId
+    ? await prisma.user.findUnique({ where: { id: userId } })
+    : email
+      ? await prisma.user.findFirst({ where: { email } })
+      : customerId
+        ? (await prisma.subscription.findUnique({ where: { bachsCustomerId: customerId }, include: { user: true } }))?.user
+        : subscriptionId
+          ? (await prisma.subscription.findUnique({ where: { bachsSubscriptionId: subscriptionId }, include: { user: true } }))?.user
+          : null;
 
   if (matchingUser) {
     const developerProduct = env('BACHS_DEVELOPER_PRODUCT_ID');
@@ -234,6 +263,10 @@ app.post('/api/billing/webhook', express.raw({ type: 'application/json', limit: 
       : eventType.includes('payment_failed') || eventType.includes('collection.failed') ? 'PAST_DUE'
         : eventType.includes('created') || eventType.includes('updated') || eventType.includes('paid') || eventType.includes('completed') ? 'ACTIVE'
           : undefined;
+    const currentPeriodStart = findDate(nested, ['current_period_start', 'currentPeriodStart', 'period_start']);
+    const currentPeriodEnd = findDate(nested, ['current_period_end', 'currentPeriodEnd', 'period_end', 'renewal_at']);
+    const cancelAtPeriodEndValue = nested.cancel_at_period_end ?? nested.cancelAtPeriodEnd;
+    const cancelAtPeriodEnd = typeof cancelAtPeriodEndValue === 'boolean' ? cancelAtPeriodEndValue : undefined;
     await prisma.subscription.upsert({
       where: { userId: matchingUser.id },
       create: {
@@ -243,6 +276,9 @@ app.post('/api/billing/webhook', express.raw({ type: 'application/json', limit: 
         ...(customerId ? { bachsCustomerId: customerId } : {}),
         ...(subscriptionId ? { bachsSubscriptionId: subscriptionId } : {}),
         ...(productId ? { bachsProductId: productId } : {}),
+        ...(currentPeriodStart ? { currentPeriodStart } : {}),
+        ...(currentPeriodEnd ? { currentPeriodEnd } : {}),
+        ...(cancelAtPeriodEnd !== undefined ? { cancelAtPeriodEnd } : {}),
       },
       update: {
         ...(plan ? { plan } : {}),
@@ -250,6 +286,9 @@ app.post('/api/billing/webhook', express.raw({ type: 'application/json', limit: 
         ...(customerId ? { bachsCustomerId: customerId } : {}),
         ...(subscriptionId ? { bachsSubscriptionId: subscriptionId } : {}),
         ...(productId ? { bachsProductId: productId } : {}),
+        ...(currentPeriodStart ? { currentPeriodStart } : {}),
+        ...(currentPeriodEnd ? { currentPeriodEnd } : {}),
+        ...(cancelAtPeriodEnd !== undefined ? { cancelAtPeriodEnd } : {}),
       },
     });
   }
@@ -377,6 +416,7 @@ app.get('/api/billing/status', async (request, response) => {
     plan: entitlements.plan,
     status: subscription.status,
     currentPeriodEnd: subscription.currentPeriodEnd,
+    cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
     projectsUsed,
     monitoredSessions: usage?.monitoredSessions ?? 0,
     recommendationsGenerated: usage?.codeRecommendationsGenerated ?? 0,
@@ -396,14 +436,15 @@ app.post('/api/billing/checkout', async (request, response) => {
       body: JSON.stringify({
         product_cart: [{ product_id: productId, quantity: 1 }],
         customer: { email: user.email ?? undefined },
+        success_url: `${origin}/billing/success`,
         return_url: `${origin}/billing`,
         cancel_url: `${origin}/pricing`,
+        metadata: { user_id: user.id, plan: requestedPlan },
       }),
     });
     const payload = await jsonBody(bachsResponse);
     if (!bachsResponse.ok) return response.status(502).json({ error: 'Bachs could not create checkout.' });
-    const url = findString(payload, ['url', 'checkout_url', 'checkoutUrl'])
-      ?? findString(payload.data, ['url', 'checkout_url', 'checkoutUrl']);
+    const url = findNestedString(payload, ['url', 'checkout_url', 'checkoutUrl']);
     if (!url) return response.status(502).json({ error: 'Bachs returned no checkout URL.' });
     return response.json({ url });
   } catch (error) {
@@ -414,9 +455,23 @@ app.post('/api/billing/checkout', async (request, response) => {
 app.post('/api/billing/portal', async (request, response) => {
   const user = await requireUser(request, response);
   if (!user) return;
-  // Bachs portal URLs are account-specific; expose this only once a portal product
-  // is configured rather than returning a guessed or unsafe URL.
-  return response.status(501).json({ error: 'Billing portal is not configured yet.', code: 'BILLING_PORTAL_NOT_CONFIGURED' });
+  const subscription = await currentSubscription(user.id);
+  if (subscription.plan === 'FREE') return response.status(400).json({ error: 'Billing management is available after you start a paid plan.', code: 'FREE_PLAN' });
+  if (!subscription.bachsCustomerId) return response.status(409).json({ error: 'Your Bachs customer record is not ready yet. Complete checkout first.', code: 'BILLING_CUSTOMER_NOT_READY' });
+  try {
+    const bachsResponse = await bachsRequest(`/v1/customers/${encodeURIComponent(subscription.bachsCustomerId)}/portal-sessions`, {
+      method: 'POST',
+      body: JSON.stringify({ return_url: `${origin}/billing` }),
+    });
+    const payload = await jsonBody(bachsResponse);
+    if (!bachsResponse.ok) return response.status(502).json({ error: 'Bachs could not open billing management.' });
+    const url = findNestedString(payload, ['url', 'portal_url', 'portalUrl'])
+      ?? findString(payload.urls, ['overview', 'url']);
+    if (!url) return response.status(502).json({ error: 'Bachs returned no billing portal URL.' });
+    return response.json({ url });
+  } catch (error) {
+    return response.status(502).json({ error: errorMessage(error) });
+  }
 });
 
 app.use((error: unknown, _request: Request, response: Response, _next: unknown) => {

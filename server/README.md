@@ -25,7 +25,7 @@ Use the official Auth.js GitHub provider and a PostgreSQL Prisma adapter. Mount 
 
 ## Billing
 
-Implement `/api/billing/checkout`, `/api/billing/portal`, and `/api/billing/status` with server-side Bachs REST calls. Resolve the product ID from `BACHS_DEVELOPER_PRODUCT_ID` or `BACHS_AUTOPILOT_PRODUCT_ID`; never accept a product ID from the browser. Update `Subscription` only from verified, idempotent Bachs webhook events (`checkout.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, and `invoice.payment_failed`). Verify the raw request body with `X-Bachs-Signature-V2` and `BACHS_WEBHOOK_SECRET` before processing.
+Implement `/api/billing/checkout`, `/api/billing/portal`, and `/api/billing/status` with server-side Bachs REST calls. Resolve the product ID from `BACHS_DEVELOPER_PRODUCT_ID` or `BACHS_AUTOPILOT_PRODUCT_ID`; never accept a product ID from the browser. Update `Subscription` only from verified, idempotent Bachs webhook events (`checkout.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, and `invoice.payment_failed`). Verify the raw request body with `X-Bachs-Signature` (and accept the legacy `X-Bachs-Signature-V2` header) and `BACHS_WEBHOOK_SECRET` before processing.
 
 ## Authorization
 
