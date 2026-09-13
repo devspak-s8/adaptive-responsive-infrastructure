@@ -13,7 +13,6 @@ import {
   Terminal, 
   LogOut,
   X,
-  Globe,
   Github,
   Zap,
   CreditCard,
@@ -111,9 +110,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   const sidebarContent = (
-    <div className="flex flex-col justify-between h-full px-4 py-6 sm:px-5 sm:py-7 select-none safe-top safe-bottom">
+    <div className="flex min-h-full flex-col px-4 py-6 sm:px-5 sm:py-7 select-none safe-top safe-bottom">
       {/* Top section: Wordmark, Status & Navigation */}
-      <div className="flex flex-col gap-6">
+      <div className="flex shrink-0 flex-col gap-6">
         {/* Brand / Logo + Mobile Close */}
         <div className="flex items-center justify-between px-2 pt-1">
           <button 
@@ -203,23 +202,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
       </div>
 
-      {/* Bottom section: Landing, Docs, Setup & Profile */}
-      <div className="border-t border-[#F5F3EE]/10 pt-4 flex flex-col gap-1.5">
+      {/* Bottom section: Resources and profile */}
+      <div className="mt-auto shrink-0 border-t border-[#F5F3EE]/10 pt-5 flex flex-col gap-1.5">
         <div className="px-3 pt-1 pb-1 text-[10px] font-mono uppercase tracking-wider text-[#F5F3EE]/35">
           Resources
         </div>
-        <button
-          id="nav-landing"
-          type="button"
-          onClick={() => handleItemClick('landing')}
-          className="w-full flex items-center justify-between px-3 py-2.5 text-[13px] rounded-md transition-all text-left min-h-[40px] text-[#F5F3EE]/70 hover:text-[#F5F3EE] hover:bg-[#F5F3EE]/5"
-        >
-          <div className="flex items-center gap-2.5">
-            <Globe className="w-4 h-4 text-[#F5F3EE]/60" />
-            <span>Landing Page</span>
-          </div>
-        </button>
-
         <button
           id="nav-docs"
           type="button"
@@ -285,7 +272,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Desktop Persistent Sidebar (>= 1024px) */}
       <aside 
         id="main-sidebar"
-        className="sidebar-scrollbar-hidden hidden lg:flex w-64 flex-shrink-0 bg-[#0B0B0B] text-[#F5F3EE] flex-col justify-between border-r border-[#F5F3EE]/10 h-[100dvh] sticky top-0 select-none z-30 overflow-y-auto"
+        className="sidebar-scrollbar-hidden hidden lg:flex w-64 flex-shrink-0 bg-[#0B0B0B] text-[#F5F3EE] flex-col border-r border-[#F5F3EE]/10 h-[100dvh] sticky top-0 select-none z-30 overflow-y-auto overscroll-contain"
       >
         {sidebarContent}
       </aside>
@@ -306,7 +293,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             role="dialog"
             aria-modal="true"
             aria-label="Navigation Menu"
-            className={`sidebar-scrollbar-hidden relative w-[min(300px,85vw)] max-w-full bg-[#0B0B0B] text-[#F5F3EE] flex flex-col justify-between border-r border-[#F5F3EE]/10 h-[100dvh] shadow-2xl z-10 overflow-y-auto ${isDrawerClosing ? 'sidebar-drawer-slide-out' : 'sidebar-drawer-slide-in'}`}
+            className={`sidebar-scrollbar-hidden relative w-[min(300px,85vw)] max-w-full bg-[#0B0B0B] text-[#F5F3EE] flex flex-col border-r border-[#F5F3EE]/10 h-[100dvh] shadow-2xl z-10 overflow-y-auto overscroll-contain ${isDrawerClosing ? 'sidebar-drawer-slide-out' : 'sidebar-drawer-slide-in'}`}
           >
             {sidebarContent}
           </aside>

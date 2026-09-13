@@ -30,6 +30,7 @@ import { LoginView } from './views/LoginView';
 import { AuthErrorView } from './views/AuthErrorView';
 import { LandingView } from './views/LandingView';
 import { PricingView } from './views/PricingView';
+import { ConsolePricingView } from './views/ConsolePricingView';
 import { DocsView } from './views/DocsView';
 import { BillingView } from './views/BillingView';
 import type { PlanId } from './config/plans';
@@ -235,7 +236,7 @@ export default function App() {
   if (currentPage === 'landing') {
     return <LandingView onNavigate={navigate} userSession={userSession} />;
   }
-  if (currentPage === 'pricing') {
+  if (currentPage === 'pricing' && !userSession) {
     return <PricingView onNavigate={navigate} userSession={userSession} />;
   }
   if (currentPage === 'docs') {
@@ -285,6 +286,7 @@ export default function App() {
               }
             }} />}
             {currentPage === 'viewport-lab' && <ViewportLabView onSelectIssue={setSelectedIssue} activeIssues={issues} autofixActive={autofixActive} />}
+            {currentPage === 'pricing' && <ConsolePricingView currentPlan={currentPlan} onNavigate={navigate} />}
             {currentPage === 'billing' && <BillingView onNavigate={navigate} />}
           </>}
         </main>

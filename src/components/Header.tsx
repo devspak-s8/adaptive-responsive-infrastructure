@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, ExternalLink, Globe, Menu } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, Menu } from 'lucide-react';
 import { PageType, ProjectItem } from '../types';
 
 interface HeaderProps {
@@ -90,10 +90,6 @@ export const Header: React.FC<HeaderProps> = ({
       {currentPage !== 'overview' && <><ChevronRight className="w-3.5 h-3.5 text-[#0B0B0B]/30" /><span className="text-[#0B0B0B] font-medium truncate">{labels[currentPage] ?? 'Dashboard'}</span></>}
     </div>
     <div className="flex items-center gap-2 flex-shrink-0">
-      <button type="button" onClick={() => onNavigate('landing')}
-        className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-mono text-[#0B0B0B]/70 hover:text-[#0B0B0B] min-h-[32px]">
-        <Globe className="w-3.5 h-3.5" /><span className="hidden sm:inline">Landing Page</span>
-      </button>
       {currentProject?.url && <a href={currentProject.url} target="_blank" rel="noreferrer" className="hidden xl:flex items-center gap-1.5 text-xs font-mono text-[#0B0B0B]/70">
         <span className="truncate max-w-[120px]">{currentProject.url.replace(/^https?:\/\//, '')}</span><ExternalLink className="w-3 h-3" />
       </a>}
