@@ -4,6 +4,8 @@ The current workspace is a Vite React client, so these routes are intentionally 
 
 Supabase is used only as the managed PostgreSQL host. Use its pooled PostgreSQL connection string as `DATABASE_URL`; do not add Supabase Auth or expose a Supabase browser key. The Prisma schema lives in `server/prisma/schema.prisma` so the server's Prisma client and migrations use the same package boundary.
 
+Set `API_PUBLIC_ORIGIN` to the externally reachable API origin in production (for example, `https://api.example.com`). The Setup & SDK page embeds this value in customer snippets; it must not be `localhost` for deployed customer sites. `NEXTAUTH_URL` remains the console origin used for Auth.js and billing callbacks.
+
 Server runtime dependencies are `@auth/express`, `@auth/prisma-adapter`, `express`, and `@prisma/client` (with `prisma` as a development dependency). Bachs is called over its server-side REST API and is kept out of the browser bundle.
 
 ## Local startup

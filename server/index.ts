@@ -22,6 +22,9 @@ const env = (name: string, required = false): string => {
 };
 
 const origin = env('NEXTAUTH_URL') || 'http://localhost:3000';
+// This is the origin customer applications use for runtime heartbeats. Keep
+// it separate from NEXTAUTH_URL, which is the console/auth callback origin.
+const apiOrigin = env('API_PUBLIC_ORIGIN') || origin;
 const authSecret = env('AUTH_SECRET', true);
 const githubId = env('GITHUB_ID', true);
 const githubSecret = env('GITHUB_SECRET', true);
@@ -476,7 +479,7 @@ app.get('/api/projects/:id/runtime-key', async (request, response) => {
   if (!project.runtimeKey) {
     await prisma.project.update({ where: { id: project.id }, data: { runtimeKey } });
   }
-  return response.json({ projectId: project.id, runtimeKey, apiBaseUrl: origin, lastHeartbeatAt: project.lastHeartbeatAt });
+  return response.json({ projectId: project.id, runtimeKey, apiBaseUrl: apiOrigin, lastHeartbeatAt: project.lastHeartbeatAt });
 });
 
 app.post('/api/runtime/heartbeat', runtimeCors, async (request, response) => {
