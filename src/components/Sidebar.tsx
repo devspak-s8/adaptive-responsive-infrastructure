@@ -106,6 +106,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'deployments', label: 'Deployments', icon: <GitCommit className="w-4 h-4" /> },
     { id: 'activity', label: 'Activity', icon: <Activity className="w-4 h-4" /> },
     { id: 'billing', label: 'Billing', icon: <CreditCard className="w-4 h-4" /> },
+    { id: 'pricing', label: 'Pricing', icon: <Zap className="w-4 h-4" /> },
     { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> },
   ];
 
@@ -231,18 +232,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </button>
 
-        <button
-          id="nav-pricing"
-          type="button"
-          onClick={() => handleItemClick('pricing')}
-          className="w-full flex items-center justify-between px-3 py-2.5 text-[13px] rounded-md transition-all text-left min-h-[40px] text-[#F5F3EE]/70 hover:text-[#F5F3EE] hover:bg-[#F5F3EE]/5"
-        >
-          <div className="flex items-center gap-2.5">
-            <Zap className="w-4 h-4 text-[#F5F3EE]/60" />
-            <span>Pricing</span>
-          </div>
-        </button>
-
         {/* User profile row */}
         <div className="mt-4 border-t border-[#F5F3EE]/10 pt-4">
           <div className="flex items-center gap-2.5 rounded-lg border border-[#F5F3EE]/10 bg-[#F5F3EE]/[0.04] p-3">
@@ -296,7 +285,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Desktop Persistent Sidebar (>= 1024px) */}
       <aside 
         id="main-sidebar"
-        className="hidden lg:flex w-64 flex-shrink-0 bg-[#0B0B0B] text-[#F5F3EE] flex-col justify-between border-r border-[#F5F3EE]/10 h-[100dvh] sticky top-0 select-none z-30 overflow-y-auto"
+        className="sidebar-scrollbar-hidden hidden lg:flex w-64 flex-shrink-0 bg-[#0B0B0B] text-[#F5F3EE] flex-col justify-between border-r border-[#F5F3EE]/10 h-[100dvh] sticky top-0 select-none z-30 overflow-y-auto"
       >
         {sidebarContent}
       </aside>
@@ -317,7 +306,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             role="dialog"
             aria-modal="true"
             aria-label="Navigation Menu"
-            className={`relative w-[min(300px,85vw)] max-w-full bg-[#0B0B0B] text-[#F5F3EE] flex flex-col justify-between border-r border-[#F5F3EE]/10 h-[100dvh] shadow-2xl z-10 overflow-y-auto ${isDrawerClosing ? 'sidebar-drawer-slide-out' : 'sidebar-drawer-slide-in'}`}
+            className={`sidebar-scrollbar-hidden relative w-[min(300px,85vw)] max-w-full bg-[#0B0B0B] text-[#F5F3EE] flex flex-col justify-between border-r border-[#F5F3EE]/10 h-[100dvh] shadow-2xl z-10 overflow-y-auto ${isDrawerClosing ? 'sidebar-drawer-slide-out' : 'sidebar-drawer-slide-in'}`}
           >
             {sidebarContent}
           </aside>

@@ -87,6 +87,18 @@
   animation: sidebar-backdrop-out 220ms ease-in both;
 }
 
+/* Keep the navigation scrollable on short screens without showing a scrollbar. */
+.sidebar-scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.sidebar-scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 /* Loading is viewport-centered regardless of the surrounding page layout. */
 .loading-state {
   position: fixed;
