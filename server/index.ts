@@ -11,7 +11,6 @@ import {
   type EntitlementSource,
 } from './entitlements.js';
 
-const prisma = new PrismaClient();
 const app = express();
 
 const env = (name: string, required = false): string => {
@@ -24,6 +23,10 @@ const origin = env('NEXTAUTH_URL') || 'http://localhost:3000';
 const authSecret = env('AUTH_SECRET', true);
 const githubId = env('GITHUB_ID', true);
 const githubSecret = env('GITHUB_SECRET', true);
+const databaseUrl = process.env.NODE_ENV === 'production'
+  ? env('DATABASE_URL', true)
+  : env('DIRECT_URL') || env('DATABASE_URL', true);
+const prisma = new PrismaClient({ datasourceUrl: databaseUrl });
 
 const authConfig: ExpressAuthConfig = {
   adapter: PrismaAdapter(prisma),
