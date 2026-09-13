@@ -112,21 +112,40 @@ export const AdaptiveProvider = ({
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') sendHeartbeat();
     };
+    const handleNavigation = () => {
+      sendHeartbeat();
+      inspectLayout();
+      enqueue({ type: 'navigation', path: pagePath(), viewport: viewport() });
+    };
     const handlePageHide = () => { void flush(true); };
 
     sendHeartbeat();
     inspectLayout();
-    const heartbeatTimer = window.setInterval(sendHeartbeat, 60_000);
+    const originalPushState = window.history.pushState.bind(window.history);
+    const originalReplaceState = window.history.replaceState.bind(window.history);
+    window.history.pushState = ((data: unknown, unused: string, url?: string | URL | null) => {
+      originalPushState(data, unused, url);
+      handleNavigation();
+    }) as History['pushState'];
+    window.history.replaceState = ((data: unknown, unused: string, url?: string | URL | null) => {
+      originalReplaceState(data, unused, url);
+      handleNavigation();
+    }) as History['replaceState'];
     window.addEventListener('resize', handleResize, { passive: true });
     document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('popstate', handleNavigation);
+    window.addEventListener('hashchange', handleNavigation);
     window.addEventListener('pagehide', handlePageHide);
 
     return () => {
       stopped = true;
-      window.clearInterval(heartbeatTimer);
       if (flushTimer !== undefined) window.clearTimeout(flushTimer);
+      window.history.pushState = originalPushState;
+      window.history.replaceState = originalReplaceState;
       window.removeEventListener('resize', handleResize);
       document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('popstate', handleNavigation);
+      window.removeEventListener('hashchange', handleNavigation);
       window.removeEventListener('pagehide', handlePageHide);
     };
   }, [apiBaseUrl, enabled, projectId, runtimeKey]);

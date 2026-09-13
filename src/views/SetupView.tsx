@@ -30,8 +30,6 @@ export const SetupView: React.FC<SetupViewProps> = ({ project }) => {
     setLoading(Boolean(project));
     if (!project) return;
     void loadRuntime();
-    const refresh = window.setInterval(() => void loadRuntime(), 15_000);
-    return () => window.clearInterval(refresh);
   }, [project?.id, loadRuntime]);
 
   if (!project) {
@@ -116,7 +114,7 @@ export default function App({ children }) {
       <div className="text-[11px] font-mono uppercase tracking-wider text-[#0B0B0B]/50">3 / Verify</div>
       <div className="flex items-start gap-3 rounded-md border border-[#0B0B0B]/10 p-4">
         <CheckCircle2 className={`mt-0.5 h-4 w-4 shrink-0 ${runtime?.lastHeartbeatAt ? 'text-emerald-700' : 'text-[#0B0B0B]/30'}`} />
-        <div><p className="text-sm font-medium">{runtime?.lastHeartbeatAt ? 'Runtime heartbeat received.' : 'Deploy your application and open the production URL.'}</p><p className="mt-1 text-xs text-[#0B0B0B]/60">This page checks for a first heartbeat every 15 seconds. Once connected, Overview and Activity will begin showing real runtime data.</p></div>
+        <div><p className="text-sm font-medium">{runtime?.lastHeartbeatAt ? 'Runtime heartbeat received.' : 'Deploy your application and open the production URL.'}</p><p className="mt-1 text-xs text-[#0B0B0B]/60">The API records a heartbeat when the SDK loads, the page becomes visible, or the route changes. Use Refresh after deploying to check again.</p></div>
       </div>
     </section>
   </div>;
