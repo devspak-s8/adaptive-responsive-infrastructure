@@ -97,19 +97,31 @@ export default function App() {
   const applySession = useCallback((session: UserSession | null) => {
     if (session?.isAuthenticated) {
       setUserSession(session);
-      navigate(currentPage === 'landing' || currentPage === 'login' || currentPage === 'auth-error' ? 'overview' : currentPage);
-    } else {
-      setUserSession(null);
-      if (!publicPages.has(currentPage)) navigate('login');
-      setProjects([]);
-      setCurrentProject(null);
-      setViewports([]);
-      setIssues([]);
-      setAutofixes([]);
-      setDeployments([]);
-      setActivities([]);
+      // Resolve the initial route without capturing currentPage. This keeps
+      // session verification one-time; clicking sidebar tabs must not recheck
+      // auth or recreate the dashboard session object.
+      setCurrentPage((page) => {
+        const nextPage = page === 'landing' || page === 'login' || page === 'auth-error' ? 'overview' : page;
+        if (nextPage !== page) window.history.replaceState({}, '', pathByRoute[nextPage]);
+        return nextPage;
+      });
+      return;
     }
-  }, [currentPage, navigate]);
+
+    setUserSession(null);
+    setCurrentPage((page) => {
+      if (publicPages.has(page)) return page;
+      window.history.replaceState({}, '', pathByRoute.login);
+      return 'login';
+    });
+    setProjects([]);
+    setCurrentProject(null);
+    setViewports([]);
+    setIssues([]);
+    setAutofixes([]);
+    setDeployments([]);
+    setActivities([]);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -117,7 +129,7 @@ export default function App() {
       if (mounted) applySession(session);
     }).catch((error) => {
       if (mounted) {
-        setAuthError(error instanceof Error ? error.message : 'Authentication service is unavailable.');
+        setAuthError('We could not verify your session. Please try again.');
         applySession(null);
       }
     }).finally(() => { if (mounted) setAuthLoading(false); });
@@ -141,7 +153,7 @@ export default function App() {
       setSettings(data.settings ?? DEFAULT_SETTINGS);
       setAutofixActive(data.settings?.autofixEnabled ?? false);
     } catch (error) {
-      setDataError(error instanceof Error ? error.message : 'The dashboard request failed.');
+      setDataError(error instanceof Error ? error.message : 'The dashboard is temporarily unavailable.');
     } finally {
       setDataLoading(false);
     }
@@ -210,8 +222,8 @@ export default function App() {
     }
   };
 
-  if (authLoading && !publicPages.has(currentPage)) return <LoadingState label="Checking session…" />;
-  if (!authLoading && !userSession && !publicPages.has(currentPage)) return <LoadingState label="Redirecting to sign in…" />;
+  if (authLoading && !publicPages.has(currentPage)) return <LoadingState label="Checking your session" detail="Securing your workspace..." />;
+  if (!authLoading && !userSession && !publicPages.has(currentPage)) return <LoadingState label="Opening sign in" detail="Taking you to a secure sign-in page..." />;
 
   if (currentPage === 'landing') {
     return <LandingView onNavigate={navigate} userSession={userSession} />;
@@ -234,7 +246,8 @@ export default function App() {
       <Sidebar currentPage={currentPage} onNavigate={navigate}
         openIssuesCount={issues.filter((issue) => issue.status === 'Open').length}
         autofixActive={Boolean(currentProject) && autofixActive} onShowLogin={signOut}
-        isMobileOpen={isMobileNavOpen} onCloseMobile={() => setIsMobileNavOpen(false)} userSession={userSession} />
+        isMobileOpen={isMobileNavOpen} onCloseMobile={() => setIsMobileNavOpen(false)} userSession={userSession}
+        isLoading={dataLoading} />
       <div className="flex-1 flex flex-col min-w-0 h-screen h-[100dvh] overflow-y-auto max-w-full">
         <Header currentPage={currentPage} currentProject={currentProject} projects={projects}
           onSelectProject={(project) => { setCurrentProject(project); void loadData(project.id); }} onNavigate={navigate} onOpenMobileNav={() => setIsMobileNavOpen(true)} />

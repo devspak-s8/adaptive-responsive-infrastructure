@@ -17,7 +17,8 @@ const api = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const response = await fetch(path, { ...init, credentials: 'include', headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) } });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({})) as { error?: string; code?: string };
-    throw new Error(payload.error ?? `Request failed (${response.status}).`);
+    const fallback = response.status >= 500 ? 'The service is temporarily unavailable.' : `Request failed (${response.status}).`;
+    throw new Error(response.status < 500 ? (payload.error ?? fallback) : fallback);
   }
   return response.json() as Promise<T>;
 };

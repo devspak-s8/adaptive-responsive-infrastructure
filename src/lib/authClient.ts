@@ -12,16 +12,19 @@ interface AuthSessionResponse {
 }
 
 const readError = async (response: Response, fallback: string): Promise<Error> => {
-  const payload = await response.json().catch(() => ({})) as { error?: string };
-  return new Error(payload.error ?? fallback);
+  // Do not surface server/provider payloads in the browser. They may contain
+  // adapter details, emails, SQL, or upstream credentials.
+  await response.json().catch(() => null);
+  return new Error(fallback);
 };
 
 /** Auth.js endpoints are intentionally server-owned; no OAuth tokens enter the browser. */
 export const getAuthSession = async (): Promise<UserSession | null> => {
   const response = await fetch('/api/auth/session', { credentials: 'include' });
   if (!response.ok) throw await readError(response, 'Authentication service is unavailable.');
-  const payload = await response.json() as AuthSessionResponse;
-  const user = payload.user;
+  const payload = await response.json().catch(() => null) as AuthSessionResponse | null;
+  // Auth.js returns a literal JSON null when there is no active session.
+  const user = payload?.user ?? null;
   if (!user?.id || user.isAuthenticated === false) return null;
   return {
     id: user.id,

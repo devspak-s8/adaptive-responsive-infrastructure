@@ -17,7 +17,7 @@ export const BillingView: React.FC<BillingViewProps> = ({ onNavigate }) => {
     fetch('/api/billing/status', { credentials: 'include' })
       .then(async (response) => {
         const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(payload.error ?? 'Billing status is unavailable.');
+        if (!response.ok) throw new Error(response.status >= 500 ? 'Billing status is unavailable.' : (payload.error ?? 'Billing status is unavailable.'));
         return payload as BillingStatus;
       })
       .then((payload) => { if (active) setStatus(payload); })
@@ -32,7 +32,10 @@ export const BillingView: React.FC<BillingViewProps> = ({ onNavigate }) => {
     try {
       const response = await fetch('/api/billing/portal', { method: 'POST', credentials: 'include' });
       const payload = await response.json().catch(() => ({})) as { url?: string; error?: string };
-      if (!response.ok || !payload.url) throw new Error(payload.error ?? 'Billing portal is unavailable.');
+      if (!response.ok || !payload.url) {
+        const message = response.status >= 500 ? 'Billing portal is unavailable.' : (payload.error ?? 'Billing portal is unavailable.');
+        throw new Error(message);
+      }
       window.location.assign(payload.url);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Billing portal is unavailable.');

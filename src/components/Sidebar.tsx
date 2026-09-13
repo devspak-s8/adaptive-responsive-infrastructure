@@ -16,7 +16,8 @@ import {
   Globe,
   Github,
   Zap,
-  CreditCard
+  CreditCard,
+  LoaderCircle,
 } from 'lucide-react';
 import { PageType, UserSession } from '../types';
 
@@ -29,6 +30,7 @@ interface SidebarProps {
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
   userSession?: UserSession | null;
+  isLoading?: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -40,6 +42,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isMobileOpen = false,
   onCloseMobile,
   userSession,
+  isLoading = false,
 }) => {
   // Handle ESC key to close mobile navigation
   useEffect(() => {
@@ -119,8 +122,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               title="Runtime status"
               className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-[#F5F3EE]/15 bg-[#F5F3EE]/5 text-[10px] font-mono text-[#F5F3EE]/70"
             >
-              <span className="w-1.5 h-1.5 rounded-full border border-[#F5F3EE]/50"></span>
-              <span>NO DATA</span>
+              {isLoading ? <LoaderCircle className="w-3 h-3 animate-spin text-[#F5F3EE]/80" aria-hidden="true" /> : <span className="w-1.5 h-1.5 rounded-full border border-[#F5F3EE]/50"></span>}
+              <span>{isLoading ? 'SYNCING' : 'NO DATA'}</span>
             </div>
 
             {/* Mobile close button */}
@@ -287,7 +290,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="fixed inset-0 z-50 lg:hidden flex">
           {/* Backdrop */}
           <div 
-            className="fixed inset-0 bg-[#0B0B0B]/60 backdrop-blur-xs transition-opacity"
+            className="fixed inset-0 bg-[#0B0B0B]/60 backdrop-blur-xs sidebar-backdrop-in"
             onClick={onCloseMobile}
             aria-hidden="true"
           />
@@ -298,7 +301,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             role="dialog"
             aria-modal="true"
             aria-label="Navigation Menu"
-            className="relative w-[min(300px,85vw)] max-w-full bg-[#0B0B0B] text-[#F5F3EE] flex flex-col justify-between border-r border-[#F5F3EE]/10 h-[100dvh] shadow-2xl z-10 overflow-y-auto"
+            className="relative w-[min(300px,85vw)] max-w-full bg-[#0B0B0B] text-[#F5F3EE] flex flex-col justify-between border-r border-[#F5F3EE]/10 h-[100dvh] shadow-2xl z-10 overflow-y-auto sidebar-drawer-in"
           >
             {sidebarContent}
           </aside>

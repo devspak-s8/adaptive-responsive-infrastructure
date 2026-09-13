@@ -37,7 +37,15 @@ const authConfig: ExpressAuthConfig = {
   pages: { error: '/auth/error' },
   // Keep the underlying OAuth/adapter cause visible during local setup while
   // avoiding verbose auth diagnostics in production.
-  debug: process.env.NODE_ENV !== 'production',
+  // Auth.js diagnostics can include provider profile data. Opt in locally
+  // with AUTH_DEBUG=true instead of sending it to normal server logs.
+  debug: process.env.AUTH_DEBUG === 'true',
+  // Keep provider profiles, email addresses, and adapter traces out of logs
+  // shown by default. The server still records a non-sensitive error class.
+  logger: {
+    error: (error) => console.error('[auth error]', error instanceof Error ? error.name : 'UnknownError'),
+    warn: (code) => console.warn('[auth warning]', code),
+  },
   providers: [GitHub({ clientId: githubId, clientSecret: githubSecret })],
   callbacks: {
     async session({ session, user }) {
@@ -129,7 +137,10 @@ const projectResponse = (project: {
   updatedAt: project.updatedAt.toISOString(),
 });
 
-const errorMessage = (error: unknown): string => error instanceof Error ? error.message : 'Unexpected server error.';
+const errorMessage = (error: unknown): string => {
+  console.error('[api error]', error instanceof Error ? error.name : 'UnknownError');
+  return 'Something went wrong while processing your request.';
+};
 
 const bachsBaseUrl = () => (env('BACHS_API_BASE_URL') || 'https://api.bachs.io').replace(/\/$/, '');
 
@@ -409,7 +420,7 @@ app.post('/api/billing/portal', async (request, response) => {
 });
 
 app.use((error: unknown, _request: Request, response: Response, _next: unknown) => {
-  console.error(error);
+  console.error('[api error]', error instanceof Error ? error.name : 'UnknownError');
   if (!response.headersSent) response.status(500).json({ error: 'Internal server error.' });
 });
 

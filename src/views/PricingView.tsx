@@ -56,7 +56,10 @@ export const PricingView: React.FC<PricingViewProps> = ({ onNavigate, userSessio
         body: JSON.stringify({ plan }),
       });
       const payload = await response.json().catch(() => ({})) as { url?: string; error?: string };
-      if (!response.ok || !payload.url) throw new Error(payload.error ?? 'Checkout is not available right now.');
+      if (!response.ok || !payload.url) {
+        const message = response.status >= 500 ? 'Checkout is not available right now.' : (payload.error ?? 'Checkout is not available right now.');
+        throw new Error(message);
+      }
       window.location.assign(payload.url);
     } catch (error) {
       setCheckoutError(error instanceof Error ? error.message : 'Checkout is not available right now.');
