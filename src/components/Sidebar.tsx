@@ -17,8 +17,11 @@ import {
   Zap,
   CreditCard,
   LoaderCircle,
+  ChevronDown,
+  Check,
+  Plus,
 } from 'lucide-react';
-import { PageType, UserSession } from '../types';
+import { PageType, ProjectItem, UserSession } from '../types';
 
 interface SidebarProps {
   currentPage: PageType;
@@ -30,6 +33,9 @@ interface SidebarProps {
   onCloseMobile?: () => void;
   userSession?: UserSession | null;
   isLoading?: boolean;
+  projects: ProjectItem[];
+  currentProject: ProjectItem | null;
+  onSelectProject: (project: ProjectItem) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -42,9 +48,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCloseMobile,
   userSession,
   isLoading = false,
+  projects,
+  currentProject,
+  onSelectProject,
 }) => {
   const [isDrawerRendered, setIsDrawerRendered] = useState(isMobileOpen);
   const [isDrawerClosing, setIsDrawerClosing] = useState(false);
+  const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
 
   useEffect(() => {
     if (isMobileOpen) {
@@ -79,11 +89,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
     };
   }, [isMobileOpen, onCloseMobile]);
 
+  useEffect(() => {
+    if (!isProjectMenuOpen) return;
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const menus = document.querySelectorAll('[data-sidebar-project-menu]');
+      if (!Array.from(menus).some((menu) => menu.contains(target))) setIsProjectMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsProjectMenuOpen(false);
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isProjectMenuOpen]);
+
   const handleItemClick = (page: PageType) => {
+    setIsProjectMenuOpen(false);
     onNavigate(page);
     if (onCloseMobile) {
       onCloseMobile();
     }
+  };
+
+  const handleProjectSelect = (project: ProjectItem) => {
+    onSelectProject(project);
+    setIsProjectMenuOpen(false);
+    if (onCloseMobile) onCloseMobile();
   };
 
   const navItems: { id: PageType; label: string; icon: React.ReactNode; badge?: string }[] = [
@@ -110,9 +145,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   const sidebarContent = (
-    <div className="flex min-h-full flex-col px-4 py-6 sm:px-5 sm:py-7 select-none safe-top safe-bottom">
+    <div className="flex min-h-full flex-col p-4 sm:p-5 select-none safe-top safe-bottom">
       {/* Top section: Wordmark, Status & Navigation */}
-      <div className="flex shrink-0 flex-col gap-6">
+      <div className="flex shrink-0 flex-col gap-5">
         {/* Brand / Logo + Mobile Close */}
         <div className="flex items-center justify-between px-2 pt-1">
           <button 
@@ -156,6 +191,64 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             )}
           </div>
+        </div>
+
+        {/* Active project context and switcher */}
+        <div data-sidebar-project-menu className="relative rounded-lg border border-[#F5F3EE]/10 bg-[#F5F3EE]/[0.04] p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-[#F5F3EE]/40">Active project</span>
+            <button
+              type="button"
+              onClick={() => handleItemClick('projects')}
+              className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold text-[#F5F3EE]/65 hover:text-[#F5F3EE]"
+            >
+              <Plus className="w-3 h-3" /> New
+            </button>
+          </div>
+          {projects.length > 0 ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setIsProjectMenuOpen((open) => !open)}
+                aria-label="Switch active project"
+                aria-haspopup="listbox"
+                aria-expanded={isProjectMenuOpen}
+                className="mt-2 flex w-full items-center justify-between gap-2 text-left text-xs font-mono font-semibold text-[#F5F3EE] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F5F3EE]/40"
+              >
+                <span className="truncate">{currentProject?.name ?? 'Select project'}</span>
+                <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-[#F5F3EE]/45 transition-transform ${isProjectMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {isProjectMenuOpen && (
+                <div role="listbox" aria-label="Projects" className="absolute left-3 right-3 top-[calc(100%-2px)] z-50 mt-2 max-h-64 overflow-y-auto rounded-lg border border-[#F5F3EE]/15 bg-[#151515] p-1.5 shadow-2xl">
+                  <div className="px-2.5 py-1.5 text-[10px] font-mono uppercase tracking-wider text-[#F5F3EE]/40">Switch project</div>
+                  {projects.map((project) => {
+                    const isActive = project.id === currentProject?.id;
+                    return (
+                      <button
+                        key={project.id}
+                        type="button"
+                        role="option"
+                        aria-selected={isActive}
+                        onClick={() => handleProjectSelect(project)}
+                        className={`flex w-full items-center justify-between gap-3 rounded-md px-2.5 py-2.5 text-left text-xs font-mono transition-colors ${isActive ? 'bg-[#F5F3EE] text-[#0B0B0B]' : 'text-[#F5F3EE]/75 hover:bg-[#F5F3EE]/10 hover:text-[#F5F3EE]'}`}
+                      >
+                        <span className="min-w-0 truncate">{project.name}</span>
+                        <span className="flex shrink-0 items-center gap-1.5 text-[10px] opacity-70">
+                          {project.environment}
+                          {isActive && <Check className="h-3.5 w-3.5" />}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          ) : (
+            <button type="button" onClick={() => handleItemClick('projects')} className="mt-2 flex w-full items-center justify-between text-left text-xs font-mono text-[#F5F3EE]/60 hover:text-[#F5F3EE]">
+              <span>No project selected</span>
+              <span className="text-[10px]">Create one</span>
+            </button>
+          )}
         </div>
 
         {/* Navigation list */}

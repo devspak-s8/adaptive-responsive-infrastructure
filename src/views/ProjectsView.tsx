@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Plus, ChevronRight, ExternalLink, X } from 'lucide-react';
-import { ProjectItem } from '../types';
+import { Plus, ChevronRight, ExternalLink, X, ArrowRight } from 'lucide-react';
+import { PageType, ProjectItem } from '../types';
 import { EmptyState } from '../components/common/EmptyState';
 import { CustomSelect } from '../components/common/CustomSelect';
 
@@ -9,6 +9,8 @@ interface ProjectsViewProps {
   currentProjectId: string | null;
   onSelectProject: (p: ProjectItem) => void;
   onCreateProject: (name: string, env: 'Production' | 'Staging' | 'Preview', url: string) => Promise<boolean | string> | boolean | string;
+  onNavigate: (page: PageType) => void;
+  projectLimit: number | null;
 }
 
 export const ProjectsView: React.FC<ProjectsViewProps> = ({
@@ -16,12 +18,15 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   currentProjectId,
   onSelectProject,
   onCreateProject,
+  onNavigate,
+  projectLimit,
 }) => {
   const [showModal, setShowModal] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectUrl, setNewProjectUrl] = useState('');
   const [newProjectEnv, setNewProjectEnv] = useState<'Production' | 'Staging' | 'Preview'>('Production');
   const [createError, setCreateError] = useState('');
+  const projectLimitReached = projectLimit !== null && projects.length >= projectLimit;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -180,7 +185,16 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4 text-xs font-mono">
-              {createError && <div role="status" className="p-3 border border-[#0B0B0B]/15 rounded-md text-[#0B0B0B]/60">{createError}</div>}
+              {projectLimitReached ? (
+                <div role="alert" className="space-y-3 rounded-md border border-[#0B0B0B]/15 bg-[#0B0B0B]/[0.03] p-3 text-[#0B0B0B]/70">
+                  <p>You have reached your current plan&apos;s project limit. Please upgrade for more projects.</p>
+                  <button type="button" onClick={() => { setShowModal(false); onNavigate('pricing'); }} className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0B0B0B] underline underline-offset-4">
+                    View plans <ArrowRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : createError && <div role="status" className="p-3 border border-[#0B0B0B]/15 rounded-md text-[#0B0B0B]/60">{createError}</div>}
+              {!projectLimitReached && (
+                <>
               <div>
                 <label className="block text-[#0B0B0B]/60 uppercase tracking-wider mb-1">
                   Project Name
@@ -242,6 +256,8 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
                   Create Project
                 </button>
               </div>
+                </>
+              )}
             </form>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, Check, CreditCard, Sparkles } from 'lucide-react';
+import { ArrowRight, Check, CreditCard } from 'lucide-react';
 import type { PageType } from '../types';
 import { formatMonthlyPrice, getPlanLimits, type PlanId } from '../config/plans';
 
@@ -59,7 +59,7 @@ export const ConsolePricingView: React.FC<ConsolePricingViewProps> = ({ currentP
       </div>
 
       <section className="rounded-md border border-[#0B0B0B]/15 bg-[#0B0B0B] text-[#F5F3EE] p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-start gap-3"><Sparkles className="w-5 h-5 mt-0.5 text-[#F5F3EE]/70 shrink-0" /><div><p className="text-[10px] font-mono uppercase tracking-wider text-[#F5F3EE]/45">Current workspace plan</p><p className="mt-1 text-lg font-semibold">{currentPlan ? getPlanLimits(currentPlan).name : 'Checking status…'}</p></div></div>
+        <div><p className="text-[10px] font-mono uppercase tracking-wider text-[#F5F3EE]/45">Current workspace plan</p><p className="mt-1 text-lg font-semibold">{currentPlan ? getPlanLimits(currentPlan).name : 'Checking status…'}</p></div>
         <p className="text-xs font-mono text-[#F5F3EE]/55">Prices are monthly · no screen-size metering</p>
       </section>
 

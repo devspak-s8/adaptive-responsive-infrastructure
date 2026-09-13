@@ -365,7 +365,7 @@ app.post('/api/projects', async (request, response) => {
     return response.status(201).json(projectResponse(project));
   } catch (error) {
     const code = error instanceof Error && 'code' in error ? String((error as { code: string }).code) : '';
-    if (code === 'PLAN_PROJECT_LIMIT_REACHED') return response.status(403).json({ error: 'Your plan has reached its project limit.', code });
+    if (code === 'PLAN_PROJECT_LIMIT_REACHED') return response.status(403).json({ error: 'Please upgrade your plan to add more projects.', code });
     return response.status(500).json({ error: errorMessage(error) });
   }
 });

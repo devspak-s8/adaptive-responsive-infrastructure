@@ -33,7 +33,7 @@ import { PricingView } from './views/PricingView';
 import { ConsolePricingView } from './views/ConsolePricingView';
 import { DocsView } from './views/DocsView';
 import { BillingView } from './views/BillingView';
-import type { PlanId } from './config/plans';
+import { getPlanLimits, type PlanId } from './config/plans';
 
 const routeByPath: Record<string, PageType> = {
   '/': 'landing', '/pricing': 'pricing', '/docs': 'docs', '/login': 'login', '/auth/error': 'auth-error',
@@ -255,7 +255,8 @@ export default function App() {
         openIssuesCount={issues.filter((issue) => issue.status === 'Open').length}
         autofixActive={Boolean(currentProject) && autofixActive} onShowLogin={signOut}
         isMobileOpen={isMobileNavOpen} onCloseMobile={() => setIsMobileNavOpen(false)} userSession={userSession}
-        isLoading={dataLoading} />
+        isLoading={dataLoading} projects={projects} currentProject={currentProject}
+        onSelectProject={(project) => { setCurrentProject(project); void loadData(project.id); }} />
       <div className="flex-1 flex flex-col min-w-0 h-screen h-[100dvh] overflow-y-auto max-w-full">
         <Header currentPage={currentPage} currentProject={currentProject} projects={projects}
           onSelectProject={(project) => { setCurrentProject(project); void loadData(project.id); }} onNavigate={navigate} onOpenMobileNav={() => setIsMobileNavOpen(true)} />
@@ -269,7 +270,8 @@ export default function App() {
               onUpgrade={() => navigate('pricing')} autofixActive={autofixActive}
               onToggleAutofix={setAutofixActive} autofixes={autofixes} />}
             {currentPage === 'projects' && <ProjectsView projects={projects} currentProjectId={currentProject?.id ?? null}
-              onSelectProject={(project) => { setCurrentProject(project); void loadData(project.id); }} onCreateProject={handleCreateProject} />}
+              onSelectProject={(project) => { setCurrentProject(project); void loadData(project.id); }} onCreateProject={handleCreateProject}
+              onNavigate={navigate} projectLimit={currentPlan ? getPlanLimits(currentPlan).projects : null} />}
             {currentPage === 'setup' && <SetupView project={currentProject} />}
             {currentPage === 'deployments' && <DeploymentsView deployments={deployments}
               canUseDeploymentMonitoring={currentPlan === 'developer' || currentPlan === 'autopilot'}
