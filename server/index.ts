@@ -29,6 +29,9 @@ const authConfig: ExpressAuthConfig = {
   adapter: PrismaAdapter(prisma),
   secret: authSecret,
   trustHost: true,
+  // Keep the underlying OAuth/adapter cause visible during local setup while
+  // avoiding verbose auth diagnostics in production.
+  debug: process.env.NODE_ENV !== 'production',
   providers: [GitHub({ clientId: githubId, clientSecret: githubSecret })],
   callbacks: {
     async session({ session, user }) {
