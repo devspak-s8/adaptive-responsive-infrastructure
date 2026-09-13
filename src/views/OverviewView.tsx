@@ -2,6 +2,7 @@ import React from 'react';
 import { ExternalLink, Settings } from 'lucide-react';
 import { PageType, ProjectItem, ResponsiveIssue, ViewportItem } from '../types';
 import { EmptyState } from '../components/common/EmptyState';
+import { CreateProjectForm } from '../components/CreateProjectForm';
 
 interface OverviewViewProps {
   project: ProjectItem | null;
@@ -9,15 +10,27 @@ interface OverviewViewProps {
   issues: ResponsiveIssue[];
   autofixCount: number;
   onNavigate: (page: PageType) => void;
+  onCreateProject: (name: string, environment: ProjectItem['environment'], url: string) => Promise<boolean | string> | boolean | string;
   onSelectIssue: (issue: ResponsiveIssue) => void;
   onSelectViewportInLab: (viewport: string) => void;
 }
 
-export const OverviewView: React.FC<OverviewViewProps> = ({ project, viewports, issues, autofixCount, onNavigate }) => {
+export const OverviewView: React.FC<OverviewViewProps> = ({ project, viewports, issues, autofixCount, onNavigate, onCreateProject }) => {
   if (!project) {
-    return <div className="max-w-6xl mx-auto pb-16 pt-2"><EmptyState title="No projects yet"
-      description="Create your first project to start monitoring how your interface behaves across real-world viewports."
-      actionLabel="Create Project" onAction={() => onNavigate('projects')} /></div>;
+    return <div className="max-w-6xl mx-auto pb-16 pt-2 space-y-5">
+      <EmptyState title="No projects yet"
+        description="Create your first project to start monitoring how your interface behaves across real-world viewports." />
+      <section className="border border-[#0B0B0B]/10 rounded-md bg-[#F5F3EE] p-5 sm:p-7 max-w-2xl">
+        <div className="mb-5">
+          <div className="text-[11px] font-mono uppercase tracking-wider text-[#0B0B0B]/50">First project</div>
+          <h2 className="text-lg sm:text-xl font-semibold mt-1">Connect an application</h2>
+          <p className="text-xs sm:text-sm text-[#0B0B0B]/60 mt-1.5 leading-relaxed">
+            Add the application you want Adaptive to monitor. You can add more projects later.
+          </p>
+        </div>
+        <CreateProjectForm onSubmit={onCreateProject} submitLabel="Create first project" />
+      </section>
+    </div>;
   }
 
   const openIssues = issues.filter((issue) => issue.status === 'Open');

@@ -192,6 +192,7 @@ export default function App() {
     try {
       const project = await createProject(name, environment, url);
       await loadData(project.id);
+      navigate('overview');
       return true;
     } catch (error) {
       return error instanceof Error ? error.message : 'The project could not be created.';
@@ -236,7 +237,7 @@ export default function App() {
         <main className="flex-1 p-3.5 sm:p-6 md:p-8 lg:p-10 min-w-0 max-w-full safe-bottom">
           {dataLoading ? <LoadingState /> : dataError ? <ErrorState message={dataError} onRetry={() => void loadData(currentProject?.id)} /> : <>
             {currentPage === 'overview' && <OverviewView project={currentProject} viewports={viewports} issues={issues}
-              autofixCount={autofixes.length} onNavigate={navigate} onSelectIssue={setSelectedIssue}
+              autofixCount={autofixes.length} onNavigate={navigate} onCreateProject={handleCreateProject} onSelectIssue={setSelectedIssue}
               onSelectViewportInLab={() => navigate('viewport-lab')} />}
             {currentPage === 'issues' && <IssuesView issues={issues} onSelectIssue={setSelectedIssue} />}
             {currentPage === 'autofix' && <AutofixView hasProject={Boolean(currentProject)} canUseAutofix={currentPlan === 'autopilot'}
