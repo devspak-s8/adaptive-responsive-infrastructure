@@ -79,6 +79,8 @@ export interface ProjectItem {
   runtimeMode: 'Autofix On' | 'Monitor Only' | 'Disabled';
   lastCheck: string | null;
   url: string;
+  runtimeConnected?: boolean;
+  lastHeartbeatAt?: string | null;
 }
 
 export interface DeploymentItem {

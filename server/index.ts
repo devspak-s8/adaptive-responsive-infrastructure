@@ -3,10 +3,11 @@ import express, { type Request, type Response } from 'express';
 import { ExpressAuth, getSession, type ExpressAuthConfig } from '@auth/express';
 import GitHub from '@auth/express/providers/github';
 import { PrismaAdapter } from '@auth/prisma-adapter';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import {
   assertCanCreateProject,
   assertCanUseAutofix,
+  assertUsageAvailable,
   getEntitlements,
   type EntitlementSource,
 } from './entitlements.js';
@@ -133,6 +134,7 @@ const projectResponse = (project: {
   productionUrl: string;
   monitoring: boolean;
   autofixEnabled: boolean;
+  lastHeartbeatAt: Date | null;
   updatedAt: Date;
 }) => ({
   id: project.id,
@@ -143,8 +145,107 @@ const projectResponse = (project: {
   runtimeMode: project.autofixEnabled ? 'Autofix On' : project.monitoring ? 'Monitor Only' : 'Disabled',
   lastCheck: null,
   url: project.productionUrl,
+  runtimeConnected: Boolean(project.lastHeartbeatAt),
+  lastHeartbeatAt: project.lastHeartbeatAt?.toISOString() ?? null,
   updatedAt: project.updatedAt.toISOString(),
 });
+
+const createRuntimeKey = (): string => `adp_pk_${crypto.randomBytes(24).toString('base64url')}`;
+
+const startOfUsagePeriod = (): Date => {
+  const start = new Date();
+  start.setUTCDate(1);
+  start.setUTCHours(0, 0, 0, 0);
+  return start;
+};
+
+const endOfUsagePeriod = (start: Date): Date => {
+  const end = new Date(start);
+  end.setUTCMonth(end.getUTCMonth() + 1);
+  return end;
+};
+
+const runtimeCors = (_request: Request, response: Response, next: () => void) => {
+  response.setHeader('Access-Control-Allow-Origin', '*');
+  response.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  response.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Adaptive-Runtime-Key');
+  response.setHeader('Access-Control-Max-Age', '86400');
+  next();
+};
+
+const runtimeProject = async (request: Request, response: Response) => {
+  const key = request.header('X-Adaptive-Runtime-Key')?.trim();
+  if (!key || key.length > 160) {
+    response.status(401).json({ error: 'A valid runtime key is required.', code: 'RUNTIME_KEY_REQUIRED' });
+    return null;
+  }
+  const project = await prisma.project.findUnique({ where: { runtimeKey: key } });
+  if (!project) {
+    response.status(401).json({ error: 'The runtime key is invalid.', code: 'RUNTIME_KEY_INVALID' });
+    return null;
+  }
+  return project;
+};
+
+const runtimeValue = (value: unknown, maxLength: number): string | null => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed.slice(0, maxLength) : null;
+};
+
+const runtimeViewport = (value: unknown): { width: number | null; height: number | null } => {
+  if (!value || typeof value !== 'object') return { width: null, height: null };
+  const viewport = value as Record<string, unknown>;
+  const width = typeof viewport.width === 'number' && Number.isFinite(viewport.width)
+    ? Math.max(0, Math.min(10000, Math.round(viewport.width))) : null;
+  const height = typeof viewport.height === 'number' && Number.isFinite(viewport.height)
+    ? Math.max(0, Math.min(10000, Math.round(viewport.height))) : null;
+  return { width, height };
+};
+
+const runtimeMetadata = (value: unknown): Record<string, unknown> | null => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  try {
+    const serialized = JSON.stringify(value);
+    if (serialized.length > 4000) return null;
+    return JSON.parse(serialized) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+};
+
+const touchRuntimeSession = async (project: { id: string; ownerId: string }, sessionId: string): Promise<void> => {
+  const existing = await prisma.runtimeSession.findUnique({ where: { projectId_sessionId: { projectId: project.id, sessionId } } });
+  const now = new Date();
+  if (existing) {
+    await prisma.runtimeSession.update({
+      where: { projectId_sessionId: { projectId: project.id, sessionId } },
+      data: { lastSeenAt: now },
+    });
+    return;
+  }
+
+  const subscription = await currentSubscription(project.ownerId);
+  const entitlements = entitlementsFor(subscription);
+  const periodStart = startOfUsagePeriod();
+  const usage = await prisma.usagePeriod.findUnique({ where: { userId_periodStart: { userId: project.ownerId, periodStart } } });
+  assertUsageAvailable(entitlements, usage?.monitoredSessions ?? 0);
+
+  try {
+    await prisma.$transaction([
+      prisma.runtimeSession.create({ data: { projectId: project.id, sessionId, firstSeenAt: now, lastSeenAt: now } }),
+      prisma.usagePeriod.upsert({
+        where: { userId_periodStart: { userId: project.ownerId, periodStart } },
+        create: { userId: project.ownerId, periodStart, periodEnd: endOfUsagePeriod(periodStart), monitoredSessions: 1 },
+        update: { monitoredSessions: { increment: 1 } },
+      }),
+    ]);
+  } catch (error) {
+    // Two tabs can start the same session at once. The unique composite key
+    // makes the second request harmless; it must not turn into a 500.
+    if ((error as { code?: string }).code !== 'P2002') throw error;
+  }
+};
 
 const errorMessage = (error: unknown): string => {
   console.error('[api error]', error instanceof Error ? error.name : 'UnknownError');
@@ -313,6 +414,69 @@ app.use('/api/auth', (request, response, next) => {
 });
 app.use(express.json({ limit: '1mb' }));
 
+app.options('/api/runtime/:action', runtimeCors, (_request, response) => response.sendStatus(204));
+
+app.get('/api/projects/:id/runtime-key', async (request, response) => {
+  const user = await requireUser(request, response);
+  if (!user) return;
+  const project = await prisma.project.findFirst({ where: { id: request.params.id, ownerId: user.id } });
+  if (!project) return response.status(404).json({ error: 'Project not found.' });
+  const runtimeKey = project.runtimeKey ?? createRuntimeKey();
+  if (!project.runtimeKey) {
+    await prisma.project.update({ where: { id: project.id }, data: { runtimeKey } });
+  }
+  return response.json({ projectId: project.id, runtimeKey, apiBaseUrl: origin, lastHeartbeatAt: project.lastHeartbeatAt });
+});
+
+app.post('/api/runtime/heartbeat', runtimeCors, async (request, response) => {
+  const project = await runtimeProject(request, response);
+  if (!project) return;
+  const sessionId = runtimeValue(request.body?.sessionId, 160);
+  if (!sessionId) return response.status(400).json({ error: 'A runtime session id is required.', code: 'SESSION_ID_REQUIRED' });
+  try {
+    await touchRuntimeSession(project, sessionId);
+    const now = new Date();
+    await prisma.project.update({ where: { id: project.id }, data: { lastHeartbeatAt: now } });
+    return response.json({ accepted: true, projectId: project.id, receivedAt: now.toISOString() });
+  } catch (error) {
+    const code = error instanceof Error && 'code' in error ? String((error as { code: string }).code) : '';
+    if (code === 'SESSION_LIMIT_REACHED') return response.status(429).json({ error: 'Monthly monitored sessions are used up. Upgrade your plan or wait for the next period.', code });
+    return response.status(500).json({ error: 'Runtime heartbeat could not be recorded.' });
+  }
+});
+
+app.post('/api/runtime/events', runtimeCors, async (request, response) => {
+  const project = await runtimeProject(request, response);
+  if (!project) return;
+  const sessionId = runtimeValue(request.body?.sessionId, 160);
+  const type = runtimeValue(request.body?.type, 40);
+  if (!sessionId || !type) return response.status(400).json({ error: 'Runtime event type and session id are required.', code: 'EVENT_INVALID' });
+  const allowedTypes = new Set(['layout_issue', 'adaptation', 'error', 'navigation']);
+  if (!allowedTypes.has(type)) return response.status(400).json({ error: 'Unsupported runtime event type.', code: 'EVENT_INVALID' });
+  const viewport = runtimeViewport(request.body?.viewport);
+  const metadata = runtimeMetadata(request.body?.metadata);
+  try {
+    await touchRuntimeSession(project, sessionId);
+    await prisma.runtimeEvent.create({
+      data: {
+        projectId: project.id,
+        sessionId,
+        type,
+        path: runtimeValue(request.body?.path, 512),
+        viewportWidth: viewport.width,
+        viewportHeight: viewport.height,
+        ...(metadata ? { metadata: metadata as Prisma.InputJsonValue } : {}),
+      },
+    });
+    await prisma.project.update({ where: { id: project.id }, data: { lastHeartbeatAt: new Date() } });
+    return response.status(202).json({ accepted: true });
+  } catch (error) {
+    const code = error instanceof Error && 'code' in error ? String((error as { code: string }).code) : '';
+    if (code === 'SESSION_LIMIT_REACHED') return response.status(429).json({ error: 'Monthly monitored sessions are used up. Upgrade your plan or wait for the next period.', code });
+    return response.status(500).json({ error: 'Runtime event could not be recorded.' });
+  }
+});
+
 app.get('/api/dashboard', async (request, response) => {
   const user = await requireUser(request, response);
   if (!user) return;
@@ -360,6 +524,7 @@ app.post('/api/projects', async (request, response) => {
         name,
         productionUrl: url,
         environment: environmentName(request.body?.environment),
+        runtimeKey: createRuntimeKey(),
       },
     });
     return response.status(201).json(projectResponse(project));

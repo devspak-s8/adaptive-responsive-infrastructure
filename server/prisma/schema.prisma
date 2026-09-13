@@ -97,10 +97,38 @@ model Project {
   environment    String   @default("Production")
   monitoring     Boolean  @default(true)
   autofixEnabled Boolean  @default(false)
+  runtimeKey     String?  @unique
+  lastHeartbeatAt DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   owner          User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  runtimeSessions RuntimeSession[]
+  runtimeEvents   RuntimeEvent[]
   @@index([ownerId, createdAt])
+}
+
+model RuntimeSession {
+  projectId  String
+  sessionId  String
+  firstSeenAt DateTime @default(now())
+  lastSeenAt DateTime @updatedAt
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@id([projectId, sessionId])
+  @@index([projectId, lastSeenAt])
+}
+
+model RuntimeEvent {
+  id             String   @id @default(cuid())
+  projectId      String
+  sessionId      String
+  type           String
+  path           String?
+  viewportWidth  Int?
+  viewportHeight Int?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@index([projectId, createdAt])
 }
 
 model UsagePeriod {

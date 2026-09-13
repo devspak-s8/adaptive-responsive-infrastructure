@@ -41,11 +41,12 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ project, viewports, 
   );
 
   return <div className="space-y-8 sm:space-y-10 max-w-6xl mx-auto pb-16">
-    <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pt-2">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pt-2">
       <div><div className="text-xs font-mono uppercase tracking-wider text-[#0B0B0B]/50 mb-1.5">Projects / {project.name}</div>
         <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">{project.name}</h1>
         <p className="text-xs sm:text-sm text-[#0B0B0B]/60 mt-1">{project.environment} frontend monitoring</p></div>
       <div className="flex items-center gap-2">
+        <button type="button" onClick={() => onNavigate('setup')} className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-mono border border-[#0B0B0B]/20 rounded-md hover:bg-[#0B0B0B]/[0.04]">{project.runtimeConnected ? 'Runtime setup' : 'Connect SDK'}</button>
         {project.url && <a href={project.url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-3 py-2 text-xs font-mono border border-[#0B0B0B]/20 rounded-md">View Site <ExternalLink className="w-3.5 h-3.5" /></a>}
         <button type="button" onClick={() => onNavigate('settings')} className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-mono bg-[#0B0B0B] text-[#F5F3EE] rounded-md"><Settings className="w-3.5 h-3.5" />Project Settings</button>
       </div>

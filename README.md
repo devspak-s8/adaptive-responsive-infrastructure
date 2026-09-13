@@ -18,7 +18,14 @@ Application data belongs in Supabase-hosted PostgreSQL through Prisma; Supabase 
 The frontend expects these server endpoints:
 
 - `/api/auth/session`, `/api/auth/signin/github`, `/api/auth/signout`
-- `/api/dashboard`, `/api/projects`, `/api/issues/:id`, `/api/projects/:id/settings`
+- `/api/dashboard`, `/api/projects`, `/api/issues/:id`, `/api/projects/:id/settings`, `/api/projects/:id/runtime-key`
 - `/api/billing/status`, `/api/billing/checkout`, `/api/billing/portal`
+
+The runtime package lives in `packages/adaptive-react`. Build the customer
+application with `@adaptive/react` and copy the project-specific provider
+snippet from the authenticated Setup & SDK page. The SDK sends only a public
+project key, viewport dimensions, route, and bounded runtime event metadata to
+`/api/runtime/heartbeat` and `/api/runtime/events`; it never receives auth,
+database, or Bachs secrets.
 
 If the backend is not configured, the UI surfaces that configuration error; it does not create mock users, subscriptions, usage, or billing history.

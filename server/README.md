@@ -27,6 +27,15 @@ Use the official Auth.js GitHub provider and a PostgreSQL Prisma adapter. Mount 
 
 Implement `/api/billing/checkout`, `/api/billing/portal`, and `/api/billing/status` with server-side Bachs REST calls. Resolve the product ID from `BACHS_DEVELOPER_PRODUCT_ID` or `BACHS_AUTOPILOT_PRODUCT_ID`; never accept a product ID from the browser. Update `Subscription` only from verified, idempotent Bachs webhook events (`checkout.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, and `invoice.payment_failed`). Verify the raw request body with `X-Bachs-Signature` (and accept the legacy `X-Bachs-Signature-V2` header) and `BACHS_WEBHOOK_SECRET` before processing.
 
+## Runtime ingestion
+
+Projects receive a public `adp_pk_...` runtime key. The authenticated Setup & SDK
+page returns that key and the API origin for the `@adaptive/react` provider.
+Runtime requests authenticate with `X-Adaptive-Runtime-Key` and never use the
+Auth.js session. Heartbeats and bounded events are stored in `RuntimeSession`
+and `RuntimeEvent`; new sessions increment the owner's monthly monitored-session
+usage and are rejected when the plan limit is reached.
+
 ## Authorization
 
 Every project and issue route must authenticate the request, verify resource ownership, load the user’s effective subscription, then call the shared functions in `server/entitlements.ts`. Return typed errors such as `PLAN_PROJECT_LIMIT_REACHED` and `FEATURE_NOT_AVAILABLE`; frontend gates are only explanatory UX.

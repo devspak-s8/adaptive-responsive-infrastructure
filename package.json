@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite --configLoader runner --port=3000 --host=0.0.0.0",
     "build": "vite build",
+    "check:sdk": "tsc -p packages/adaptive-react/tsconfig.json",
+    "build:sdk": "tsc -p packages/adaptive-react/tsconfig.build.json",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit"

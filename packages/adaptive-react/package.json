@@ -1,0 +1,16 @@
+{
+  "name": "@adaptive/react",
+  "version": "0.1.0",
+  "description": "Adaptive responsive runtime observer for React applications.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "scripts": {
+    "check": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json"
+  }
+}

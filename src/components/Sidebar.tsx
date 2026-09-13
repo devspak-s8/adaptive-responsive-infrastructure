@@ -124,6 +124,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems: { id: PageType; label: string; icon: React.ReactNode; badge?: string }[] = [
     { id: 'overview', label: 'Overview', icon: <LayoutGrid className="w-4 h-4" /> },
     { id: 'projects', label: 'Projects', icon: <FolderKanban className="w-4 h-4" /> },
+    { id: 'setup', label: 'Setup & SDK', icon: <Terminal className="w-4 h-4" /> },
     { 
       id: 'issues', 
       label: 'Issues', 
