@@ -110,7 +110,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   const sidebarContent = (
-    <div className="flex flex-col justify-between h-full p-4 select-none safe-top safe-bottom">
+    <div className="flex flex-col justify-between h-full px-4 py-6 sm:px-5 sm:py-7 select-none safe-top safe-bottom">
       {/* Top section: Wordmark, Status & Navigation */}
       <div className="flex flex-col gap-6">
         {/* Brand / Logo + Mobile Close */}
@@ -165,16 +165,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
           {navItems.map((item) => {
             const isSelected = currentPage === item.id;
+            const isBilling = item.id === 'billing';
             return (
               <button
                 key={item.id}
                 id={`nav-${item.id}`}
                 type="button"
                 onClick={() => handleItemClick(item.id)}
-                className={`w-full flex items-center justify-between px-3 py-2.5 sm:py-2 text-[13px] rounded-md transition-all duration-150 text-left min-h-[44px] sm:min-h-[38px] ${
+                className={`w-full flex items-center justify-between px-3 py-2.5 text-[13px] rounded-md transition-all duration-150 text-left min-h-[42px] ${
                   isSelected
                     ? 'bg-[#F5F3EE]/15 text-[#F5F3EE] font-medium border border-[#F5F3EE]/20 shadow-xs'
-                    : 'text-[#F5F3EE]/70 hover:text-[#F5F3EE] hover:bg-[#F5F3EE]/5'
+                    : `text-[#F5F3EE]/70 hover:text-[#F5F3EE] hover:bg-[#F5F3EE]/5 ${isBilling ? 'border border-[#F5F3EE]/10 bg-[#F5F3EE]/[0.03]' : ''}`
                 }`}
               >
                 <div className="flex items-center gap-2.5">
@@ -202,55 +203,49 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Bottom section: Landing, Docs, Setup & Profile */}
-      <div className="border-t border-[#F5F3EE]/10 pt-3 flex flex-col gap-1">
+      <div className="border-t border-[#F5F3EE]/10 pt-4 flex flex-col gap-1.5">
+        <div className="px-3 pt-1 pb-1 text-[10px] font-mono uppercase tracking-wider text-[#F5F3EE]/35">
+          Resources
+        </div>
         <button
           id="nav-landing"
           type="button"
           onClick={() => handleItemClick('landing')}
-          className="w-full flex items-center justify-between px-3 py-2.5 sm:py-1.5 text-[13px] rounded-md transition-all text-left min-h-[44px] sm:min-h-[36px] text-[#F5F3EE]/70 hover:text-[#F5F3EE] hover:bg-[#F5F3EE]/5"
+          className="w-full flex items-center justify-between px-3 py-2.5 text-[13px] rounded-md transition-all text-left min-h-[40px] text-[#F5F3EE]/70 hover:text-[#F5F3EE] hover:bg-[#F5F3EE]/5"
         >
           <div className="flex items-center gap-2.5">
             <Globe className="w-4 h-4 text-[#F5F3EE]/60" />
             <span>Landing Page</span>
           </div>
-          <span className="text-[10px] font-mono text-[#F5F3EE]/40 border border-[#F5F3EE]/20 px-1 rounded">
-            Public
-          </span>
         </button>
 
         <button
           id="nav-docs"
           type="button"
           onClick={() => handleItemClick('docs')}
-          className="w-full flex items-center justify-between px-3 py-2.5 sm:py-1.5 text-[13px] rounded-md transition-all text-left min-h-[44px] sm:min-h-[36px] text-[#F5F3EE]/70 hover:text-[#F5F3EE] hover:bg-[#F5F3EE]/5"
+          className="w-full flex items-center justify-between px-3 py-2.5 text-[13px] rounded-md transition-all text-left min-h-[40px] text-[#F5F3EE]/70 hover:text-[#F5F3EE] hover:bg-[#F5F3EE]/5"
         >
           <div className="flex items-center gap-2.5">
             <BookOpen className="w-4 h-4 text-[#F5F3EE]/60" />
             <span>Docs & SDK</span>
           </div>
-          <span className="text-[10px] font-mono text-[#F5F3EE]/40 border border-[#F5F3EE]/20 px-1 rounded">
-            Public
-          </span>
         </button>
 
         <button
           id="nav-pricing"
           type="button"
           onClick={() => handleItemClick('pricing')}
-          className="w-full flex items-center justify-between px-3 py-2.5 sm:py-1.5 text-[13px] rounded-md transition-all text-left min-h-[44px] sm:min-h-[36px] text-[#F5F3EE]/70 hover:text-[#F5F3EE] hover:bg-[#F5F3EE]/5"
+          className="w-full flex items-center justify-between px-3 py-2.5 text-[13px] rounded-md transition-all text-left min-h-[40px] text-[#F5F3EE]/70 hover:text-[#F5F3EE] hover:bg-[#F5F3EE]/5"
         >
           <div className="flex items-center gap-2.5">
             <Zap className="w-4 h-4 text-[#F5F3EE]/60" />
             <span>Pricing</span>
           </div>
-          <span className="text-[10px] font-mono text-[#F5F3EE]/40 border border-[#F5F3EE]/20 px-1 rounded">
-            Public
-          </span>
         </button>
 
         {/* User profile row */}
-        <div className="mt-3 border-t border-[#F5F3EE]/10 pt-3">
-          <div className="flex items-center gap-2.5 rounded-lg border border-[#F5F3EE]/10 bg-[#F5F3EE]/[0.04] p-2.5">
+        <div className="mt-4 border-t border-[#F5F3EE]/10 pt-4">
+          <div className="flex items-center gap-2.5 rounded-lg border border-[#F5F3EE]/10 bg-[#F5F3EE]/[0.04] p-3">
             {userSession?.avatarUrl ? (
               <img
                 src={userSession.avatarUrl}
@@ -263,7 +258,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {userSession?.githubLogin ? userSession.githubLogin.slice(0, 2).toUpperCase() : '—'}
               </div>
             )}
-            <div className="truncate text-left">
+            <div className="min-w-0 flex-1 truncate text-left">
               <div className="text-[12px] text-[#F5F3EE] font-medium truncate leading-tight flex items-center gap-1.5">
                 <span>{userSession?.githubLogin ? `@${userSession.githubLogin}` : 'Signed out'}</span>
                 {userSession?.provider === 'github' && (
