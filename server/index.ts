@@ -238,6 +238,13 @@ app.post('/api/billing/webhook', express.raw({ type: 'application/json', limit: 
 
 // Express 5/path-to-regexp requires a named wildcard parameter.
 const authHandler = ExpressAuth(authConfig);
+app.get('/api/auth/signin/github', (request, response) => {
+  // Older client bundles used a GET provider URL. Auth.js deliberately only
+  // accepts the provider action as a CSRF-protected POST, so send legacy links
+  // to its built-in sign-in page instead of emitting an Unsupported action.
+  const callbackUrl = typeof request.query.callbackUrl === 'string' ? request.query.callbackUrl : origin;
+  return response.redirect(`/api/auth/signin?callbackUrl=${encodeURIComponent(callbackUrl)}`);
+});
 app.use('/api/auth', (request, response, next) => {
   // @auth/express currently derives its base path from the Express 4-style
   // numeric wildcard parameter. Express 5 stores named wildcards differently,
