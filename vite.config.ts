@@ -17,6 +17,14 @@ export default defineConfig(() => {
       hmr: process.env.DISABLE_HMR !== 'true',
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      // Auth.js, dashboard, and Bachs billing endpoints run on the Node server.
+      proxy: {
+        '/api': {
+          target: process.env.VITE_API_ORIGIN ?? 'http://localhost:3001',
+          changeOrigin: true,
+          secure: false,
+        },
+      },
     },
   };
 });
