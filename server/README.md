@@ -36,6 +36,12 @@ Auth.js session. Heartbeats and bounded events are stored in `RuntimeSession`
 and `RuntimeEvent`; new sessions increment the owner's monthly monitored-session
 usage and are rejected when the plan limit is reached.
 
+If `AI_API_KEY` is configured, `/api/runtime/analyze` calls the configured
+OpenAI-compatible chat-completions endpoint with bounded layout context. The
+response is validated against an allowlist of reversible CSS properties before
+it is returned to the SDK. AI calls count against the plan's recommendation
+allowance; the key remains server-only.
+
 ## Authorization
 
 Every project and issue route must authenticate the request, verify resource ownership, load the user’s effective subscription, then call the shared functions in `server/entitlements.ts`. Return typed errors such as `PLAN_PROJECT_LIMIT_REACHED` and `FEATURE_NOT_AVAILABLE`; frontend gates are only explanatory UX.

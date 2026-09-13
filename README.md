@@ -28,4 +28,10 @@ project key, viewport dimensions, route, and bounded runtime event metadata to
 `/api/runtime/heartbeat` and `/api/runtime/events`; it never receives auth,
 database, or Bachs secrets.
 
+When `AI_API_KEY` is configured on the server, a new deterministic layout issue
+is sent to `/api/runtime/analyze` with a bounded, text-free DOM/CSS snapshot.
+The analyzer can return one allowlisted style patch for one SDK-tagged element;
+the SDK applies it only in that visitor's session, verifies the scroll boundary,
+and reports a verified or rolled-back adaptation.
+
 If the backend is not configured, the UI surfaces that configuration error; it does not create mock users, subscriptions, usage, or billing history.

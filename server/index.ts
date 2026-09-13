@@ -6,6 +6,7 @@ import { PrismaAdapter } from '@auth/prisma-adapter';
 import { Prisma, PrismaClient } from '@prisma/client';
 import {
   assertCanCreateProject,
+  assertCanGenerateRecommendation,
   assertCanUseAutofix,
   assertUsageAvailable,
   getEntitlements,
@@ -212,6 +213,50 @@ const runtimeMetadata = (value: unknown): Record<string, unknown> | null => {
   } catch {
     return null;
   }
+};
+
+const allowedAdaptationProperties = new Set([
+  'box-sizing',
+  'flex-shrink',
+  'max-width',
+  'max-inline-size',
+  'min-width',
+  'min-inline-size',
+  'overflow-wrap',
+  'overflow-x',
+  'word-break',
+]);
+
+const normalizeAdaptation = (value: unknown): { targetId: string; property: string; value: string; reason: string } | null => {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = (value as { adaptation?: unknown }).adaptation;
+  if (!candidate || typeof candidate !== 'object') return null;
+  const patch = candidate as Record<string, unknown>;
+  const targetId = runtimeValue(patch.targetId, 80);
+  const property = runtimeValue(patch.property, 40)?.toLowerCase() ?? null;
+  const cssValue = runtimeValue(patch.value, 120);
+  const reason = runtimeValue(patch.reason, 240) ?? 'Safe responsive adaptation';
+  if (!targetId || !property || !cssValue || !allowedAdaptationProperties.has(property)) return null;
+  if (/[;{}]|!important/i.test(cssValue)) return null;
+  return { targetId, property, value: cssValue, reason };
+};
+
+const aiBaseUrl = () => (env('AI_API_BASE_URL') || 'https://api.openai.com/v1').replace(/\/+$/, '');
+
+const aiResponseContent = (payload: Record<string, unknown>): string | null => {
+  const choices = Array.isArray(payload.choices) ? payload.choices : [];
+  const first = choices[0];
+  if (!first || typeof first !== 'object') return null;
+  const message = (first as Record<string, unknown>).message;
+  if (!message || typeof message !== 'object') return null;
+  const content = (message as Record<string, unknown>).content;
+  return typeof content === 'string' ? content : null;
+};
+
+const parseAIJson = (content: string | null): unknown => {
+  if (!content) return null;
+  const cleaned = content.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  try { return JSON.parse(cleaned) as unknown; } catch { return null; }
 };
 
 const touchRuntimeSession = async (project: { id: string; ownerId: string }, sessionId: string): Promise<void> => {
@@ -474,6 +519,60 @@ app.post('/api/runtime/events', runtimeCors, async (request, response) => {
     const code = error instanceof Error && 'code' in error ? String((error as { code: string }).code) : '';
     if (code === 'SESSION_LIMIT_REACHED') return response.status(429).json({ error: 'Monthly monitored sessions are used up. Upgrade your plan or wait for the next period.', code });
     return response.status(500).json({ error: 'Runtime event could not be recorded.' });
+  }
+});
+
+app.post('/api/runtime/analyze', runtimeCors, async (request, response) => {
+  const project = await runtimeProject(request, response);
+  if (!project) return;
+  const sessionId = runtimeValue(request.body?.sessionId, 160);
+  const issue = runtimeValue(request.body?.issue, 80);
+  const context = runtimeMetadata(request.body?.context);
+  if (!sessionId || !issue || !context) return response.status(400).json({ error: 'A runtime issue context is required.', code: 'ANALYSIS_INVALID' });
+
+  const apiKey = env('AI_API_KEY');
+  if (!apiKey) return response.json({ enabled: false, adaptation: null, reason: 'AI_NOT_CONFIGURED' });
+
+  try {
+    const subscription = await currentSubscription(project.ownerId);
+    const entitlements = entitlementsFor(subscription);
+    const periodStart = startOfUsagePeriod();
+    const usage = await prisma.usagePeriod.findUnique({ where: { userId_periodStart: { userId: project.ownerId, periodStart } } });
+    assertCanGenerateRecommendation(entitlements, usage?.codeRecommendationsGenerated ?? 0);
+
+    const contextJson = JSON.stringify({ issue, context }).slice(0, 14_000);
+    const aiResponse = await fetch(`${aiBaseUrl()}/chat/completions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: env('AI_MODEL') || 'gpt-4o-mini',
+        temperature: 0,
+        max_tokens: 350,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a responsive-layout safety analyzer. Return JSON only. You may propose exactly one reversible CSS style patch for one SDK-tagged target. Use only these properties: box-sizing, flex-shrink, max-width, max-inline-size, min-width, min-inline-size, overflow-wrap, overflow-x, word-break. Never use selectors, scripts, !important, display, position, height, or arbitrary DOM changes. If uncertain, return {"adaptation":null}. The value must not contain semicolons or braces.',
+          },
+          {
+            role: 'user',
+            content: `Analyze this runtime layout context and return {"adaptation":{"targetId":"...","property":"...","value":"...","reason":"..."}} or {"adaptation":null}. Context: ${contextJson}`,
+          },
+        ],
+      }),
+    });
+    const payload = await jsonBody(aiResponse);
+    if (!aiResponse.ok) return response.status(502).json({ error: 'AI layout analysis is temporarily unavailable.', code: 'AI_UNAVAILABLE' });
+    const adaptation = normalizeAdaptation(parseAIJson(aiResponseContent(payload)));
+    await prisma.usagePeriod.upsert({
+      where: { userId_periodStart: { userId: project.ownerId, periodStart } },
+      create: { userId: project.ownerId, periodStart, periodEnd: endOfUsagePeriod(periodStart), codeRecommendationsGenerated: 1 },
+      update: { codeRecommendationsGenerated: { increment: 1 } },
+    });
+    return response.json({ enabled: true, adaptation });
+  } catch (error) {
+    const code = error instanceof Error && 'code' in error ? String((error as { code: string }).code) : '';
+    if (code === 'RECOMMENDATION_LIMIT_REACHED') return response.status(429).json({ error: 'AI recommendation limit reached for this plan.', code });
+    return response.status(502).json({ error: 'AI layout analysis is temporarily unavailable.', code: 'AI_UNAVAILABLE' });
   }
 });
 
