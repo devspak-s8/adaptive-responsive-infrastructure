@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ProjectSettings } from '../types';
+import { CustomSelect } from '../components/common/CustomSelect';
 
 interface SettingsViewProps {
   settings: ProjectSettings;
@@ -81,11 +82,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <label className="block text-[#0B0B0B]/60 uppercase tracking-wider">
               Environment
             </label>
-            <input
-              type="text"
+            <CustomSelect
+              ariaLabel="Environment"
               value={settings.environment}
-              onChange={(e) => setSettings({ ...settings, environment: e.target.value })}
-              className="w-full px-3 py-2 bg-[#F5F3EE] border border-[#0B0B0B]/15 rounded-md text-[#0B0B0B] focus:outline-none focus:border-[#0B0B0B] min-h-[38px]"
+              onChange={(next) => setSettings({ ...settings, environment: next })}
+              className="w-full"
+              buttonClassName="w-full min-h-[38px]"
+              options={[
+                { value: 'Production', label: 'Production' },
+                { value: 'Staging', label: 'Staging' },
+                { value: 'Preview', label: 'Preview' },
+              ]}
             />
           </div>
 
@@ -178,16 +185,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <div className="text-sm font-medium text-[#0B0B0B]">Scan Frequency</div>
               <div className="text-xs text-[#0B0B0B]/60">Interval between automated headless synthetic viewport audits.</div>
             </div>
-            <select
-              aria-label="Scan Frequency"
+            <CustomSelect
+              ariaLabel="Scan Frequency"
               value={settings.scanFrequency}
-              onChange={(e) => setSettings({ ...settings, scanFrequency: e.target.value as any })}
-              className="bg-[#F5F3EE] border border-[#0B0B0B]/20 rounded px-2.5 py-1.5 text-xs font-mono text-[#0B0B0B] min-h-[36px] self-start sm:self-auto"
-            >
-              <option value="continuous">Continuous (Every commit + 10m)</option>
-              <option value="hourly">Hourly</option>
-              <option value="daily">Daily</option>
-            </select>
+              onChange={(next) => setSettings({ ...settings, scanFrequency: next as ProjectSettings['scanFrequency'] })}
+              className="self-start sm:self-auto"
+              buttonClassName="min-w-[220px]"
+              options={[
+                { value: 'continuous', label: 'Continuous (Every commit + 10m)' },
+                { value: 'hourly', label: 'Hourly' },
+                { value: 'daily', label: 'Daily' },
+              ]}
+            />
           </div>
         </div>
       </section>

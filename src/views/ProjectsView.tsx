@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Plus, ChevronRight, ExternalLink, X } from 'lucide-react';
 import { ProjectItem } from '../types';
 import { EmptyState } from '../components/common/EmptyState';
+import { CustomSelect } from '../components/common/CustomSelect';
 
 interface ProjectsViewProps {
   projects: ProjectItem[];
@@ -212,15 +213,18 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
                 <label className="block text-[#0B0B0B]/60 uppercase tracking-wider mb-1">
                   Target Environment
                 </label>
-                <select
+                <CustomSelect
                   value={newProjectEnv}
-                  onChange={(e) => setNewProjectEnv(e.target.value as any)}
-                  className="w-full px-3 py-2 bg-[#F5F3EE] border border-[#0B0B0B]/20 rounded-md text-[#0B0B0B] focus:outline-none focus:border-[#0B0B0B] min-h-[38px]"
-                >
-                  <option value="Production">Production</option>
-                  <option value="Staging">Staging</option>
-                  <option value="Preview">Preview</option>
-                </select>
+                  onChange={(next) => setNewProjectEnv(next as any)}
+                  ariaLabel="Target environment"
+                  className="w-full"
+                  buttonClassName="w-full"
+                  options={[
+                    { value: 'Production', label: 'Production' },
+                    { value: 'Staging', label: 'Staging' },
+                    { value: 'Preview', label: 'Preview' },
+                  ]}
+                />
               </div>
 
               <div className="pt-2 flex flex-col sm:flex-row justify-end gap-2">

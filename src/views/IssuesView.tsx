@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Search, Filter, ArrowUpDown, Check, AlertTriangle, X, CheckCircle2 } from 'lucide-react';
 import { ResponsiveIssue, IssueSeverity } from '../types';
+import { CustomSelect } from '../components/common/CustomSelect';
 
 interface IssuesViewProps {
   issues: ResponsiveIssue[];
@@ -113,48 +114,41 @@ export const IssuesView: React.FC<IssuesViewProps> = ({
           {/* Viewport filter */}
           <div className="flex items-center gap-1.5">
             <span className="text-[#0B0B0B]/50 whitespace-nowrap">Viewport:</span>
-            <select
-              aria-label="Filter by Viewport"
+            <CustomSelect
+              ariaLabel="Filter by Viewport"
               value={selectedViewport}
-              onChange={(e) => setSelectedViewport(e.target.value)}
-              className="bg-[#F5F3EE] border border-[#0B0B0B]/15 px-2 py-1 rounded text-xs text-[#0B0B0B] focus:outline-none min-h-[32px]"
-            >
-              <option value="All">All Viewports</option>
-              {viewportsList.map((vp) => (
-                <option key={vp} value={vp}>{vp}</option>
-              ))}
-            </select>
+              onChange={setSelectedViewport}
+              options={[{ value: 'All', label: 'All Viewports' }, ...viewportsList.map((vp) => ({ value: vp, label: vp }))]}
+              buttonClassName="min-h-[32px] py-1"
+            />
           </div>
 
           {/* Route filter */}
           <div className="flex items-center gap-1.5">
             <span className="text-[#0B0B0B]/50 whitespace-nowrap">Route:</span>
-            <select
-              aria-label="Filter by Route"
+            <CustomSelect
+              ariaLabel="Filter by Route"
               value={selectedRoute}
-              onChange={(e) => setSelectedRoute(e.target.value)}
-              className="bg-[#F5F3EE] border border-[#0B0B0B]/15 px-2 py-1 rounded text-xs text-[#0B0B0B] focus:outline-none min-h-[32px]"
-            >
-              <option value="All">All Routes</option>
-              {routesList.map((rt) => (
-                <option key={rt} value={rt}>{rt}</option>
-              ))}
-            </select>
+              onChange={setSelectedRoute}
+              options={[{ value: 'All', label: 'All Routes' }, ...routesList.map((rt) => ({ value: rt, label: rt }))]}
+              buttonClassName="min-h-[32px] py-1"
+            />
           </div>
 
           {/* Sort dropdown */}
           <div className="flex items-center gap-1.5 sm:ml-auto">
             <span className="text-[#0B0B0B]/50 whitespace-nowrap">Sort by:</span>
-            <select
-              aria-label="Sort issues"
+            <CustomSelect
+              ariaLabel="Sort issues"
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="bg-[#F5F3EE] border border-[#0B0B0B]/15 px-2 py-1 rounded text-xs text-[#0B0B0B] focus:outline-none min-h-[32px]"
-            >
-              <option value="detected">Detected Time</option>
-              <option value="severity">Severity (High to Low)</option>
-              <option value="viewport">Viewport</option>
-            </select>
+              onChange={(next) => setSortBy(next as 'detected' | 'severity' | 'viewport')}
+              options={[
+                { value: 'detected', label: 'Detected Time' },
+                { value: 'severity', label: 'Severity (High to Low)' },
+                { value: 'viewport', label: 'Viewport' },
+              ]}
+              buttonClassName="min-h-[32px] py-1"
+            />
           </div>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { CustomSelect } from './common/CustomSelect';
 
 export type ProjectEnvironment = 'Production' | 'Staging' | 'Preview';
 
@@ -82,16 +83,19 @@ export const CreateProjectForm: React.FC<CreateProjectFormProps> = ({
         <label htmlFor="project-environment" className="block text-[#0B0B0B]/60 uppercase tracking-wider mb-1">
           Environment
         </label>
-        <select
+        <CustomSelect
           id="project-environment"
           value={environment}
-          onChange={(event) => setEnvironment(event.target.value as ProjectEnvironment)}
-          className="w-full px-3 py-2 bg-[#F5F3EE] border border-[#0B0B0B]/20 rounded-md text-[#0B0B0B] focus:outline-none focus:border-[#0B0B0B] min-h-[40px]"
-        >
-          <option value="Production">Production</option>
-          <option value="Staging">Staging</option>
-          <option value="Preview">Preview</option>
-        </select>
+          onChange={(next) => setEnvironment(next as ProjectEnvironment)}
+          ariaLabel="Project environment"
+          className="w-full"
+          buttonClassName="w-full min-h-[40px]"
+          options={[
+            { value: 'Production', label: 'Production' },
+            { value: 'Staging', label: 'Staging' },
+            { value: 'Preview', label: 'Preview' },
+          ]}
+        />
       </div>
 
       <div className="pt-2 flex flex-col-reverse sm:flex-row justify-end gap-2">

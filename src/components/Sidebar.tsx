@@ -249,8 +249,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
 
         {/* User profile row */}
-        <div className="mt-2 pt-3 border-t border-[#F5F3EE]/10 flex items-center justify-between px-2">
-          <div className="flex items-center gap-2 min-w-0">
+        <div className="mt-3 border-t border-[#F5F3EE]/10 pt-3">
+          <div className="flex items-center gap-2.5 rounded-lg border border-[#F5F3EE]/10 bg-[#F5F3EE]/[0.04] p-2.5">
             {userSession?.avatarUrl ? (
               <img
                 src={userSession.avatarUrl}
@@ -270,24 +270,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <Github className="w-3 h-3 text-[#F5F3EE]/60 flex-shrink-0" />
                 )}
               </div>
-              <div className="text-[10px] font-mono text-[#F5F3EE]/40 truncate">
-                {userSession?.org || 'Not authenticated'}
+              <div className="mt-1 flex items-center gap-1.5 text-[10px] font-mono truncate">
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${userSession?.isAuthenticated ? 'bg-emerald-300' : 'bg-[#F5F3EE]/35'}`} />
+                <span className={userSession?.isAuthenticated ? 'text-emerald-200/90' : 'text-[#F5F3EE]/45'}>
+                  {userSession?.isAuthenticated ? 'Authenticated' : 'Not authenticated'}
+                </span>
               </div>
             </div>
-          </div>
 
-          <button
-            id="sidebar-signout-btn"
-            type="button"
-            title="Sign out and go to Login page"
-            onClick={() => {
-              if (onCloseMobile) onCloseMobile();
-              onShowLogin();
-            }}
-            className="p-1.5 text-[#F5F3EE]/40 hover:text-[#F5F3EE] hover:bg-[#F5F3EE]/10 rounded transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-          </button>
+            <button
+              id="sidebar-signout-btn"
+              type="button"
+              title="Sign out and go to Login page"
+              onClick={() => {
+                if (onCloseMobile) onCloseMobile();
+                onShowLogin();
+              }}
+              className="p-1.5 text-[#F5F3EE]/40 hover:text-[#F5F3EE] hover:bg-[#F5F3EE]/10 rounded transition-colors min-w-[34px] min-h-[34px] flex items-center justify-center flex-shrink-0"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
     </div>
