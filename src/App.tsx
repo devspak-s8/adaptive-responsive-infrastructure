@@ -27,6 +27,7 @@ import { ActivityView } from './views/ActivityView';
 import { SettingsView } from './views/SettingsView';
 import { ViewportLabView } from './views/ViewportLabView';
 import { LoginView } from './views/LoginView';
+import { AuthErrorView } from './views/AuthErrorView';
 import { LandingView } from './views/LandingView';
 import { PricingView } from './views/PricingView';
 import { DocsView } from './views/DocsView';
@@ -34,7 +35,7 @@ import { BillingView } from './views/BillingView';
 import type { PlanId } from './config/plans';
 
 const routeByPath: Record<string, PageType> = {
-  '/': 'landing', '/pricing': 'pricing', '/docs': 'docs', '/login': 'login',
+  '/': 'landing', '/pricing': 'pricing', '/docs': 'docs', '/login': 'login', '/auth/error': 'auth-error',
   '/dashboard': 'overview', '/overview': 'overview', '/projects': 'projects', '/issues': 'issues', '/autofix': 'autofix',
   '/viewport-lab': 'viewport-lab', '/deployments': 'deployments', '/activity': 'activity',
   '/settings': 'settings', '/billing': 'billing', '/billing/success': 'billing', '/setup': 'setup',
@@ -47,7 +48,7 @@ pathByRoute.overview = '/dashboard';
 pathByRoute.billing = '/billing';
 
 const pageFromLocation = () => routeByPath[window.location.pathname] ?? 'landing';
-const publicPages = new Set<PageType>(['landing', 'pricing', 'docs', 'login']);
+const publicPages = new Set<PageType>(['landing', 'pricing', 'docs', 'login', 'auth-error']);
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<PageType>(() => pageFromLocation());
@@ -85,7 +86,7 @@ export default function App() {
   useEffect(() => {
     const labels: Record<PageType, string> = {
       landing: 'Adaptive | Responsive Infrastructure', pricing: 'Pricing | Adaptive', docs: 'Docs | Adaptive',
-      login: 'Sign in | Adaptive', overview: 'Overview | Adaptive', projects: 'Projects | Adaptive',
+      login: 'Sign in | Adaptive', 'auth-error': 'Server error | Adaptive', overview: 'Overview | Adaptive', projects: 'Projects | Adaptive',
       issues: 'Issues | Adaptive', autofix: 'Autofix | Adaptive', 'viewport-lab': 'Viewport Lab | Adaptive',
       deployments: 'Deployments | Adaptive', activity: 'Activity | Adaptive', settings: 'Settings | Adaptive', billing: 'Billing | Adaptive',
       setup: 'Setup & SDK | Adaptive',
@@ -96,7 +97,7 @@ export default function App() {
   const applySession = useCallback((session: UserSession | null) => {
     if (session?.isAuthenticated) {
       setUserSession(session);
-      navigate(currentPage === 'landing' || currentPage === 'login' ? 'overview' : currentPage);
+      navigate(currentPage === 'landing' || currentPage === 'login' || currentPage === 'auth-error' ? 'overview' : currentPage);
     } else {
       setUserSession(null);
       if (!publicPages.has(currentPage)) navigate('login');
@@ -223,6 +224,9 @@ export default function App() {
   }
   if (currentPage === 'login') {
     return <LoginView onNavigate={navigate} onSignIn={signInWithGitHub} loading={authLoading} error={authError} />;
+  }
+  if (currentPage === 'auth-error') {
+    return <AuthErrorView onNavigate={navigate} />;
   }
 
   return (

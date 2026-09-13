@@ -29,7 +29,7 @@ model User {
   githubId            String?        @unique
   githubLogin         String?
   name                String?
-  email               String?
+  email               String?        @unique
   avatarUrl           String?
   emailVerified       DateTime?
   image               String?
@@ -121,4 +121,3 @@ model ProcessedWebhookEvent {
   providerEventId String   @unique
   processedAt    DateTime @default(now())
 }
-

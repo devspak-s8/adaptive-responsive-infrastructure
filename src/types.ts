@@ -1,6 +1,7 @@
 export type PageType = 
   | 'landing'
   | 'login'
+  | 'auth-error'
   | 'pricing'
   | 'docs'
   | 'overview'

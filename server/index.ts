@@ -32,6 +32,9 @@ const authConfig: ExpressAuthConfig = {
   adapter: PrismaAdapter(prisma),
   secret: authSecret,
   trustHost: true,
+  // Keep Auth.js failures inside the application instead of showing its
+  // generic framework error page.
+  pages: { error: '/auth/error' },
   // Keep the underlying OAuth/adapter cause visible during local setup while
   // avoiding verbose auth diagnostics in production.
   debug: process.env.NODE_ENV !== 'production',

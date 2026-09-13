@@ -28,7 +28,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onNavigate, onSignIn, load
       </button>
       <div><div className="text-xs font-mono text-[#0B0B0B]/40 uppercase tracking-wider">Autonomous Layout Infrastructure</div>
         <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight max-w-sm mt-4">Automated responsive layout monitoring and zero-regression runtime repair.</h1></div>
-      <div className="text-xs font-mono text-[#0B0B0B]/50">GitHub authentication</div>
+      <div className="text-xs font-mono text-[#0B0B0B]/50">Responsive infrastructure for every viewport</div>
     </div>
     <div className="w-full md:w-1/2 flex items-center justify-center p-5 sm:p-8 md:p-12">
       <div className="w-full max-w-sm space-y-6">
@@ -40,7 +40,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onNavigate, onSignIn, load
           <Github className="w-4 h-4" />{isSigningIn || loading ? 'Connecting…' : 'Continue with GitHub'}<ArrowRight className="w-3.5 h-3.5" />
         </button>
         {error && <div role="alert" className="p-3 border border-[#0B0B0B]/20 rounded-md text-xs font-mono text-[#0B0B0B]/70 text-center">{error}</div>}
-        <p className="text-[11px] text-[#0B0B0B]/50 text-center font-mono pt-4 border-t border-[#0B0B0B]/10">Authentication is handled by Auth.js and GitHub OAuth.</p>
       </div>
     </div>
   </div>;
