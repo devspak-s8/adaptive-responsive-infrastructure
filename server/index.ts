@@ -744,8 +744,17 @@ app.use((error: unknown, _request: Request, response: Response, _next: unknown) 
 });
 
 const port = Number(process.env.PORT || 3001);
-const server = app.listen(port, () => {
+const server = app.listen(port);
+server.once('listening', () => {
   console.log(`Adaptive API listening on http://localhost:${port}`);
+});
+server.once('error', (error: NodeJS.ErrnoException) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`Adaptive API could not start: port ${port} is already in use. Stop the existing process or set PORT to another value.`);
+  } else {
+    console.error('Adaptive API could not start.', error.message);
+  }
+  process.exitCode = 1;
 });
 
 const shutdown = async () => {
