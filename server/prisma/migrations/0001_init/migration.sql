@@ -12,7 +12,7 @@ CREATE TABLE "User" (
     "id" TEXT NOT NULL,
     "githubId" TEXT,
     "githubLogin" TEXT,
-    "name" TEXT NOT NULL,
+    "name" TEXT,
     "email" TEXT,
     "avatarUrl" TEXT,
     "emailVerified" TIMESTAMP(3),

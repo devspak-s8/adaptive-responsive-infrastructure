@@ -28,7 +28,7 @@ model User {
   // are populated from the verified GitHub profile during that event.
   githubId            String?        @unique
   githubLogin         String?
-  name                String
+  name                String?
   email               String?
   avatarUrl           String?
   emailVerified       DateTime?
@@ -121,5 +121,4 @@ model ProcessedWebhookEvent {
   providerEventId String   @unique
   processedAt    DateTime @default(now())
 }
-
 
