@@ -24,8 +24,10 @@ enum SubscriptionStatus {
 
 model User {
   id                  String         @id @default(cuid())
-  githubId            String         @unique
-  githubLogin         String
+  // Auth.js creates the base user before its sign-in event runs. These fields
+  // are populated from the verified GitHub profile during that event.
+  githubId            String?        @unique
+  githubLogin         String?
   name                String
   email               String?
   avatarUrl           String?
@@ -119,3 +121,5 @@ model ProcessedWebhookEvent {
   providerEventId String   @unique
   processedAt    DateTime @default(now())
 }
+
+

@@ -21,7 +21,9 @@ export default defineConfig(() => {
       proxy: {
         '/api': {
           target: process.env.VITE_API_ORIGIN ?? 'http://localhost:3001',
-          changeOrigin: true,
+          // Preserve the browser origin so Auth.js generates the callback URL
+          // registered in GitHub (http://localhost:3000 in local development).
+          changeOrigin: false,
           secure: false,
         },
       },

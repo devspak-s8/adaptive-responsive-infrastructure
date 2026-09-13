@@ -3,9 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx index.ts",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate deploy"
+    "dev": "node --env-file=../.env.local tsx-entry.mjs",
+    "start": "node --env-file=../.env.local tsx-entry.mjs",
+    "prisma:generate": "node --env-file=../.env.local scripts/prisma-cli.mjs generate",
+    "prisma:migrate": "node --env-file=../.env.local scripts/prisma-cli.mjs migrate deploy"
   },
   "dependencies": {
     "@auth/express": "^0.12.3",

@@ -170,7 +170,11 @@ export default function App() {
 
   const signInWithGitHub = async () => {
     setAuthError(null);
-    redirectToGitHub();
+    try {
+      await redirectToGitHub();
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'GitHub sign in is unavailable.');
+    }
   };
 
   const signOut = async () => {

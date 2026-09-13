@@ -2,9 +2,22 @@
 
 The current workspace is a Vite React client, so these routes are intentionally called through same-origin `/api` endpoints. They must be implemented by the Node/Next server that hosts the app; the browser must not manufacture a session, subscription, usage count, or plan.
 
-Supabase is used only as the managed PostgreSQL host. Use its pooled PostgreSQL connection string as `DATABASE_URL`; do not add Supabase Auth or expose a Supabase browser key.
+Supabase is used only as the managed PostgreSQL host. Use its pooled PostgreSQL connection string as `DATABASE_URL`; do not add Supabase Auth or expose a Supabase browser key. The Prisma schema lives in `server/prisma/schema.prisma` so the server's Prisma client and migrations use the same package boundary.
 
 Server runtime dependencies are `@auth/express`, `@auth/prisma-adapter`, `express`, and `@prisma/client` (with `prisma` as a development dependency). Bachs is called over its server-side REST API and is kept out of the browser bundle.
+
+## Local startup
+
+Register `http://localhost:3000/api/auth/callback/github` as the callback URL in the GitHub OAuth app. Start the API and Vite client in separate terminals:
+
+```bash
+cd server
+npm run prisma:generate
+npm run prisma:migrate
+npm run dev
+```
+
+Then, from the repository root, run `npm run dev` for the browser client. The first migration creates the Auth.js, subscription, project, usage, and webhook-idempotency tables in the Supabase PostgreSQL database. Do not run it until `DATABASE_URL` and `DIRECT_URL` point to the intended Supabase project.
 
 ## Auth.js
 

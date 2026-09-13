@@ -6,7 +6,7 @@ import {
   getPlanLimits,
   hasExceededSessionLimit,
   type PlanId,
-} from '../src/config/plans';
+} from '../src/config/plans.js';
 
 export type ServerPlan = 'FREE' | 'DEVELOPER' | 'AUTOPILOT';
 
