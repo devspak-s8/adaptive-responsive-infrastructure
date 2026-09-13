@@ -66,6 +66,7 @@ export default function App() {
   const [autofixActive, setAutofixActive] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -191,13 +192,18 @@ export default function App() {
   };
 
   const signOut = async () => {
+    setIsSigningOut(true);
+    const minimumLoader = new Promise<void>((resolve) => window.setTimeout(resolve, 350));
     try {
-      await signOutFromAuth();
+      await Promise.all([signOutFromAuth(), minimumLoader]);
     } catch (error) {
+      await minimumLoader;
       setAuthError(error instanceof Error ? error.message : 'Sign out failed.');
+    } finally {
+      setUserSession(null);
+      navigate('landing');
+      setIsSigningOut(false);
     }
-    setUserSession(null);
-    navigate('landing');
   };
 
   const handleCreateProject = async (name: string, environment: ProjectItem['environment'], url: string) => {
@@ -224,6 +230,7 @@ export default function App() {
 
   if (authLoading && !publicPages.has(currentPage)) return <LoadingState label="Checking your session" detail="Securing your workspace..." />;
   if (!authLoading && !userSession && !publicPages.has(currentPage)) return <LoadingState label="Opening sign in" detail="Taking you to a secure sign-in page..." />;
+  if (isSigningOut) return <LoadingState label="Signing you out" detail="Closing your secure session..." />;
 
   if (currentPage === 'landing') {
     return <LandingView onNavigate={navigate} userSession={userSession} />;

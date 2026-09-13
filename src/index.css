@@ -51,9 +51,14 @@
   padding-right: env(safe-area-inset-right, 0px);
 }
 
-@keyframes sidebar-drawer-in {
-  from { opacity: 0; transform: translateX(-14px); }
-  to { opacity: 1; transform: translateX(0); }
+@keyframes sidebar-drawer-slide-in {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes sidebar-drawer-slide-out {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
 }
 
 @keyframes sidebar-backdrop-in {
@@ -61,12 +66,25 @@
   to { opacity: 1; }
 }
 
-.sidebar-drawer-in {
-  animation: sidebar-drawer-in 180ms ease-out both;
+@keyframes sidebar-backdrop-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.sidebar-drawer-slide-in {
+  animation: sidebar-drawer-slide-in 220ms ease-out both;
+}
+
+.sidebar-drawer-slide-out {
+  animation: sidebar-drawer-slide-out 220ms ease-in both;
 }
 
 .sidebar-backdrop-in {
   animation: sidebar-backdrop-in 160ms ease-out both;
+}
+
+.sidebar-backdrop-out {
+  animation: sidebar-backdrop-out 220ms ease-in both;
 }
 
 /* Loading is viewport-centered regardless of the surrounding page layout. */

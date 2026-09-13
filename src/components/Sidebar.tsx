@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   LayoutGrid, 
   FolderKanban, 
@@ -44,6 +44,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
   userSession,
   isLoading = false,
 }) => {
+  const [isDrawerRendered, setIsDrawerRendered] = useState(isMobileOpen);
+  const [isDrawerClosing, setIsDrawerClosing] = useState(false);
+
+  useEffect(() => {
+    if (isMobileOpen) {
+      setIsDrawerRendered(true);
+      setIsDrawerClosing(false);
+      return;
+    }
+    if (!isDrawerRendered) return;
+    setIsDrawerClosing(true);
+    const timeout = window.setTimeout(() => {
+      setIsDrawerRendered(false);
+      setIsDrawerClosing(false);
+    }, 220);
+    return () => window.clearTimeout(timeout);
+  }, [isMobileOpen, isDrawerRendered]);
+
   // Handle ESC key to close mobile navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -286,11 +304,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </aside>
 
       {/* Mobile Drawer (visible when isMobileOpen is true) */}
-      {isMobileOpen && (
+      {isDrawerRendered && (
         <div className="fixed inset-0 z-50 lg:hidden flex">
           {/* Backdrop */}
           <div 
-            className="fixed inset-0 bg-[#0B0B0B]/60 backdrop-blur-xs sidebar-backdrop-in"
+            className={`fixed inset-0 bg-[#0B0B0B]/60 backdrop-blur-xs ${isDrawerClosing ? 'sidebar-backdrop-out' : 'sidebar-backdrop-in'}`}
             onClick={onCloseMobile}
             aria-hidden="true"
           />
@@ -301,7 +319,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             role="dialog"
             aria-modal="true"
             aria-label="Navigation Menu"
-            className="relative w-[min(300px,85vw)] max-w-full bg-[#0B0B0B] text-[#F5F3EE] flex flex-col justify-between border-r border-[#F5F3EE]/10 h-[100dvh] shadow-2xl z-10 overflow-y-auto sidebar-drawer-in"
+            className={`relative w-[min(300px,85vw)] max-w-full bg-[#0B0B0B] text-[#F5F3EE] flex flex-col justify-between border-r border-[#F5F3EE]/10 h-[100dvh] shadow-2xl z-10 overflow-y-auto ${isDrawerClosing ? 'sidebar-drawer-slide-out' : 'sidebar-drawer-slide-in'}`}
           >
             {sidebarContent}
           </aside>
