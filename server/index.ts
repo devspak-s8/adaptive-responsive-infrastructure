@@ -15,6 +15,14 @@ import {
 } from './entitlements.js';
 
 const app = express();
+app.disable('x-powered-by');
+app.use((_request, response, next) => {
+  response.setHeader('X-Content-Type-Options', 'nosniff');
+  response.setHeader('X-Frame-Options', 'DENY');
+  response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
+});
 
 const env = (name: string, required = false): string => {
   const value = process.env[name]?.trim();
@@ -26,6 +34,18 @@ const origin = env('NEXTAUTH_URL') || 'http://localhost:3000';
 // This is the origin customer applications use for runtime heartbeats. Keep
 // it separate from NEXTAUTH_URL, which is the console/auth callback origin.
 const apiOrigin = env('API_PUBLIC_ORIGIN') || origin;
+const originUrl = (() => {
+  try { return new URL(origin); } catch { throw new Error('NEXTAUTH_URL must be an absolute URL.'); }
+})();
+const publicApiUrl = (() => {
+  try {
+    const parsed = new URL(apiOrigin);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('invalid protocol');
+    return parsed;
+  } catch {
+    throw new Error('API_PUBLIC_ORIGIN must be an absolute http(s) URL.');
+  }
+})();
 const authSecret = env('AUTH_SECRET', true);
 const githubId = env('GITHUB_ID', true);
 const githubSecret = env('GITHUB_SECRET', true);
@@ -43,6 +63,41 @@ const databaseUrl = (() => {
   return `${value}${value.includes('?') ? '&' : '?'}pgbouncer=true`;
 })();
 const prisma = new PrismaClient({ datasourceUrl: databaseUrl });
+
+const safeProjectUrl = (value: unknown): string | null => {
+  if (typeof value !== 'string' || value.trim().length === 0 || value.trim().length > 2048) return null;
+  try {
+    const parsed = new URL(value.trim());
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+    if (parsed.username || parsed.password) return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+};
+
+const safeCallbackUrl = (value: unknown): string => {
+  if (typeof value !== 'string') return originUrl.toString();
+  try {
+    const callback = new URL(value, originUrl);
+    return callback.origin === originUrl.origin ? callback.toString() : originUrl.toString();
+  } catch {
+    return originUrl.toString();
+  }
+};
+
+const safeBillingUrl = (value: unknown): string | null => {
+  if (typeof value !== 'string' || value.trim().length === 0 || value.trim().length > 4096) return null;
+  try {
+    const parsed = new URL(value.trim());
+    const localHttp = originUrl.protocol === 'http:' && ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname);
+    if (parsed.protocol !== 'https:' && !localHttp) return null;
+    if (parsed.username || parsed.password) return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+};
 
 const isMissingSession = (error: unknown): boolean =>
   error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025';
@@ -334,7 +389,12 @@ const runtimeVisualSnapshot = (value: unknown): string | null => {
   if (typeof value !== 'string' || !value.startsWith(prefix) || value.length > 40_000) return null;
   try {
     const markup = decodeURIComponent(value.slice(prefix.length));
-    if (!markup.trimStart().startsWith('<svg') || /<script\b|javascript:|\son[a-z]+\s*=/i.test(markup)) return null;
+    const trimmed = markup.trim();
+    if (!/^<svg\b[\s\S]*<\/svg>$/i.test(trimmed)) return null;
+    if (/<(?:script|foreignObject|image|use|iframe|object|style|link|audio|video)\b|\b(?:href|xlink:href|src|style)\s*=|url\s*\(/i.test(trimmed)) return null;
+    const tags = Array.from(trimmed.matchAll(/<\/?([a-z][\w:-]*)\b[^>]*>/gi), (match) => match[1].toLowerCase());
+    if (tags.some((tag) => !['svg', 'rect', 'g', 'text'].includes(tag))) return null;
+    if (tags[0] !== 'svg' || tags[tags.length - 1] !== 'svg') return null;
   } catch {
     return null;
   }
@@ -877,7 +937,7 @@ app.get('/api/auth/signin/github', (request, response) => {
   // Older client bundles used a GET provider URL. Auth.js deliberately only
   // accepts the provider action as a CSRF-protected POST, so send legacy links
   // to its built-in sign-in page instead of emitting an Unsupported action.
-  const callbackUrl = typeof request.query.callbackUrl === 'string' ? request.query.callbackUrl : origin;
+  const callbackUrl = safeCallbackUrl(request.query.callbackUrl);
   return response.redirect(`/api/auth/signin?callbackUrl=${encodeURIComponent(callbackUrl)}`);
 });
 app.use('/api/auth', (request, response, next) => {
@@ -900,7 +960,7 @@ app.get('/api/projects/:id/runtime-key', async (request, response) => {
   if (!project.runtimeKey) {
     await prisma.project.update({ where: { id: project.id }, data: { runtimeKey } });
   }
-  return response.json({ projectId: project.id, runtimeKey, apiBaseUrl: apiOrigin, lastHeartbeatAt: project.lastHeartbeatAt });
+  return response.json({ projectId: project.id, runtimeKey, apiBaseUrl: publicApiUrl.toString().replace(/\/+$/, ''), lastHeartbeatAt: project.lastHeartbeatAt });
 });
 
 app.post('/api/runtime/heartbeat', runtimeCors, async (request, response) => {
@@ -1218,9 +1278,9 @@ app.post('/api/projects', async (request, response) => {
   if (!user) return;
   try {
     const name = typeof request.body?.name === 'string' ? request.body.name.trim() : '';
-    const url = typeof request.body?.url === 'string' ? request.body.url.trim() : '';
+    const url = safeProjectUrl(request.body?.url);
     if (!name || !url) return response.status(400).json({ error: 'Project name and URL are required.' });
-    try { new URL(url); } catch { return response.status(400).json({ error: 'Enter a valid project URL.' }); }
+    if (name.length > 120) return response.status(400).json({ error: 'Project name must be 120 characters or fewer.' });
     const subscription = await currentSubscription(user.id);
     const entitlements = entitlementsFor(subscription);
     const count = await prisma.project.count({ where: { ownerId: user.id } });
@@ -1256,6 +1316,10 @@ app.put('/api/projects/:id/settings', async (request, response) => {
     const notifyCritical = typeof request.body?.notifyCritical === 'boolean' ? request.body.notifyCritical : project.notifyCritical;
     const notifyAutofix = typeof request.body?.notifyAutofix === 'boolean' ? request.body.notifyAutofix : project.notifyAutofix;
     const protectionLevel = protectionLevelName(request.body?.protectionLevel ?? project.protectionLevel);
+    const productionUrl = request.body?.productionUrl === undefined ? project.productionUrl : safeProjectUrl(request.body?.productionUrl);
+    if (!productionUrl) return response.status(400).json({ error: 'Enter a valid http(s) production URL.' });
+    const projectName = typeof request.body?.projectName === 'string' ? request.body.projectName.trim() : project.name;
+    if (projectName.length > 120) return response.status(400).json({ error: 'Project name must be 120 characters or fewer.' });
     if (autofixEnabled && !entitlements.autofix) assertCanUseAutofix(entitlements);
     if (automaticRollback && !entitlements.automaticRollback && automaticRollback !== project.automaticRollback) {
       return response.status(403).json({ error: 'Automatic rollback is available on the Autopilot plan.', code: 'FEATURE_NOT_AVAILABLE' });
@@ -1278,8 +1342,8 @@ app.put('/api/projects/:id/settings', async (request, response) => {
     const updated = await prisma.project.update({
       where: { id: project.id },
       data: {
-        name: typeof request.body?.projectName === 'string' ? request.body.projectName.trim() || project.name : project.name,
-        productionUrl: typeof request.body?.productionUrl === 'string' ? request.body.productionUrl.trim() || project.productionUrl : project.productionUrl,
+        name: projectName || project.name,
+        productionUrl,
         environment: environmentName(request.body?.environment ?? project.environment),
         monitoring: typeof request.body?.monitoringEnabled === 'boolean' ? request.body.monitoringEnabled : project.monitoring,
         autofixEnabled,
@@ -1374,7 +1438,7 @@ app.post('/api/billing/checkout', async (request, response) => {
     });
     const payload = await jsonBody(bachsResponse);
     if (!bachsResponse.ok) return response.status(502).json({ error: 'Bachs could not create checkout.' });
-    const url = findNestedString(payload, ['url', 'checkout_url', 'checkoutUrl']);
+    const url = safeBillingUrl(findNestedString(payload, ['url', 'checkout_url', 'checkoutUrl']));
     if (!url) return response.status(502).json({ error: 'Bachs returned no checkout URL.' });
     return response.json({ url });
   } catch (error) {
@@ -1395,8 +1459,8 @@ app.post('/api/billing/portal', async (request, response) => {
     });
     const payload = await jsonBody(bachsResponse);
     if (!bachsResponse.ok) return response.status(502).json({ error: 'Bachs could not open billing management.' });
-    const url = findNestedString(payload, ['url', 'portal_url', 'portalUrl'])
-      ?? findString(payload.urls, ['overview', 'url']);
+    const url = safeBillingUrl(findNestedString(payload, ['url', 'portal_url', 'portalUrl']))
+      ?? safeBillingUrl(findString(payload.urls, ['overview', 'url']));
     if (!url) return response.status(502).json({ error: 'Bachs returned no billing portal URL.' });
     return response.json({ url });
   } catch (error) {

@@ -115,7 +115,13 @@ npm run lint
 npm run build
 npm run check:adapters
 npm run build:adapters
+npm run security:audit
 ```
+
+`npm run security:audit` checks that private browser routes redirect to sign-in,
+server resources enforce session or runtime-key authorization, OAuth callbacks
+stay on the console origin, billing redirects are HTTPS-only in production, and
+server-only credentials do not cross into browser or package source.
 
 ## Production environment
 

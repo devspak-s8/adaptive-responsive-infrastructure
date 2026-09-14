@@ -49,6 +49,7 @@ pathByRoute.overview = '/dashboard';
 
 const pageFromLocation = () => routeByPath[window.location.pathname] ?? 'landing';
 const publicPages = new Set<PageType>(['landing', 'pricing', 'docs', 'login', 'auth-error']);
+const privatePages = new Set<PageType>(['overview', 'projects', 'issues', 'autofix', 'viewport-lab', 'deployments', 'activity', 'settings', 'setup']);
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<PageType>(() => pageFromLocation());
@@ -73,10 +74,11 @@ export default function App() {
   const [currentPlan, setCurrentPlan] = useState<PlanId | null>(null);
 
   const navigate = useCallback((page: PageType) => {
-    setCurrentPage(page);
-    const path = pathByRoute[page];
+    const nextPage = privatePages.has(page) && !userSession ? 'login' : page;
+    setCurrentPage(nextPage);
+    const path = pathByRoute[nextPage];
     if (window.location.pathname !== path) window.history.pushState({}, '', path);
-  }, []);
+  }, [userSession]);
 
   useEffect(() => {
     const handlePopState = () => setCurrentPage(pageFromLocation());
@@ -231,7 +233,7 @@ export default function App() {
   };
 
   if (authLoading && !publicPages.has(currentPage)) return <LoadingState label="Checking your session" detail="Securing your workspace..." />;
-  if (!authLoading && !userSession && !publicPages.has(currentPage)) return <LoadingState label="Opening sign in" detail="Taking you to a secure sign-in page..." />;
+  if (!authLoading && !userSession && !publicPages.has(currentPage)) return <LoginView onNavigate={navigate} onSignIn={signInWithGitHub} loading={authLoading} error={authError} />;
   if (isSigningOut) return <LoadingState label="Signing you out" detail="Closing your secure session..." />;
 
   if (currentPage === 'landing') {
