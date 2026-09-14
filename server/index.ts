@@ -3,6 +3,7 @@ import express, { type Request, type Response } from 'express';
 import { ExpressAuth, getSession, type ExpressAuthConfig } from '@auth/express';
 import GitHub from '@auth/express/providers/github';
 import { PrismaAdapter } from '@auth/prisma-adapter';
+import type { Adapter } from '@auth/core/adapters';
 import { Prisma, PrismaClient } from '@prisma/client';
 import {
   assertCanCreateProject,
@@ -31,11 +32,100 @@ const githubSecret = env('GITHUB_SECRET', true);
 // The API uses Supabase's pooled connection. DIRECT_URL is reserved for
 // Prisma migrations and schema tooling, where a session/direct connection is
 // required.
-const databaseUrl = env('DATABASE_URL', true);
+const databaseUrl = (() => {
+  const value = env('DATABASE_URL', true);
+  // Supabase's transaction pooler (6543) uses PgBouncer. Prisma's prepared
+  // statements are connection-scoped and can collide when PgBouncer moves a
+  // transaction between connections, producing intermittent AdapterErrors.
+  // Keep this compatibility flag server-side so a copied connection string
+  // cannot silently put Auth.js back into the failing mode.
+  if (!/:(6543)(?:\/|\?|$)/.test(value) || /(?:[?&])pgbouncer=/i.test(value)) return value;
+  return `${value}${value.includes('?') ? '&' : '?'}pgbouncer=true`;
+})();
 const prisma = new PrismaClient({ datasourceUrl: databaseUrl });
 
+const isMissingSession = (error: unknown): boolean =>
+  error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025';
+
+// Auth.js can receive the same expired session cookie in several tabs at once.
+// The first request deletes the row; subsequent deletes/updates then get a
+// Prisma P2025. Treat that race as an anonymous session rather than logging a
+// noisy SessionTokenError and leaving the stale cookie in place.
+const prismaAdapter = PrismaAdapter(prisma);
+const authAdapter: Adapter = {
+  ...prismaAdapter,
+  async updateSession(data) {
+    try {
+      return await prismaAdapter.updateSession?.(data);
+    } catch (error) {
+      if (isMissingSession(error)) return null;
+      throw error;
+    }
+  },
+  async deleteSession(sessionToken) {
+    try {
+      await prismaAdapter.deleteSession?.(sessionToken);
+    } catch (error) {
+      if (isMissingSession(error)) return;
+      throw error;
+    }
+  },
+};
+
+const tokenRefreshes = new Map<string, Promise<void>>();
+
+const refreshGithubAccessToken = async (userId: string): Promise<void> => {
+  const existing = tokenRefreshes.get(userId);
+  if (existing) return existing;
+
+  const refresh = (async () => {
+    try {
+      const account = await prisma.account.findFirst({ where: { userId, provider: 'github' } });
+      if (!account?.refresh_token || !account.expires_at || account.expires_at * 1000 > Date.now() + 60_000) return;
+
+      const response = await fetch('https://github.com/login/oauth/access_token', {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: githubId,
+          client_secret: githubSecret,
+          grant_type: 'refresh_token',
+          refresh_token: account.refresh_token,
+        }),
+      });
+      const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
+      const accessToken = typeof payload.access_token === 'string' ? payload.access_token : null;
+      if (!response.ok || !accessToken) {
+        console.warn('[auth warning] GitHub token refresh was rejected');
+        return;
+      }
+
+      const expiresIn = typeof payload.expires_in === 'number' ? payload.expires_in : null;
+      const refreshToken = typeof payload.refresh_token === 'string' ? payload.refresh_token : account.refresh_token;
+      await prisma.account.update({
+        where: { provider_providerAccountId: { provider: account.provider, providerAccountId: account.providerAccountId } },
+        data: {
+          access_token: accessToken,
+          refresh_token: refreshToken,
+          ...(expiresIn ? { expires_at: Math.floor(Date.now() / 1000) + expiresIn } : {}),
+        },
+      });
+    } catch {
+      // A provider refresh failure must not destroy an otherwise valid local
+      // Auth.js session. The next GitHub API call can request re-authentication.
+      console.warn('[auth warning] GitHub token refresh unavailable');
+    }
+  })();
+  tokenRefreshes.set(userId, refresh);
+  try {
+    await refresh;
+  } finally {
+    tokenRefreshes.delete(userId);
+  }
+};
+
 const authConfig: ExpressAuthConfig = {
-  adapter: PrismaAdapter(prisma),
+  adapter: authAdapter,
   secret: authSecret,
   trustHost: true,
   // Keep Auth.js failures inside the application instead of showing its
@@ -60,6 +150,7 @@ const authConfig: ExpressAuthConfig = {
   providers: [GitHub({ clientId: githubId, clientSecret: githubSecret })],
   callbacks: {
     async session({ session, user }) {
+      await refreshGithubAccessToken(user.id);
       const record = await prisma.user.findUnique({ where: { id: user.id } });
       const sessionUser = session.user as unknown as Record<string, unknown>;
       sessionUser.id = user.id;
