@@ -1,38 +1,159 @@
 # Adaptive — Responsive Infrastructure
 
-Frontend console for responsive layout monitoring, regression detection, and runtime protection.
+Adaptive is a browser runtime and console for finding responsive layout problems in real visitor sessions. The runtime observes the rendered DOM/CSSOM, reports meaningful layout changes, and can apply a verified, visitor-scoped adaptation when the server-side AI decision layer is configured.
 
-## Run locally
+## Product flow
 
-1. Install dependencies with `npm install`.
-2. Copy `.env.example` to `.env.local` and configure the server values.
-3. Start the frontend with `npm run dev`.
-4. Create a production build with `npm run build`.
+1. Sign in to the console with GitHub.
+2. Create a project with its production URL and environment.
+3. Copy the project ID, public runtime key, and API origin from **Setup & SDK**.
+4. Install the adapter for the application that owns the website.
+5. Deploy the website and refresh Setup until the first heartbeat arrives.
+6. Review issues, adaptations, and verification results in the dashboard.
 
-## Authentication and billing
+The runtime works from rendered browser output, so it is not coupled to React. React, Next.js, Vue, Nuxt, Svelte, Angular, Astro, WordPress, Shopify, Django, Laravel, Rails, and plain HTML/JavaScript can use the same engine.
 
-Authentication is GitHub OAuth through Auth.js. The browser talks to server-owned `/api/auth/*` endpoints; OAuth tokens and plan state are never trusted from the client.
+## Published packages
 
-Application data belongs in Supabase-hosted PostgreSQL through Prisma; Supabase Auth is not used. Use the pooled Supabase connection in `DATABASE_URL` and the direct connection in `DIRECT_URL` for migrations. Bachs is the source of truth for paid subscriptions; local entitlements are updated only by verified, idempotent Bachs webhooks. Configure the variables in `.env.example`, including the Bachs product IDs for Developer ($5/month) and Autopilot ($15/month).
+All packages are published under the `@provenly` npm scope:
 
-The frontend expects these server endpoints:
+| Application | Package |
+| --- | --- |
+| Shared engine | `@provenly/adaptive-runtime` |
+| React | `@provenly/adaptive-react` |
+| Next.js | `@provenly/adaptive-next` |
+| Vue / Nuxt | `@provenly/adaptive-vue` |
+| Svelte / SvelteKit | `@provenly/adaptive-svelte` |
+| Angular | `@provenly/adaptive-angular` |
+| Browser, Astro, or server-rendered HTML | `@provenly/adaptive-browser` |
 
-- `/api/auth/session`, `/api/auth/signin/github`, `/api/auth/signout`
-- `/api/dashboard`, `/api/projects`, `/api/issues/:id`, `/api/projects/:id/settings`, `/api/projects/:id/runtime-key`
-- `/api/billing/status`, `/api/billing/checkout`, `/api/billing/portal`
+Publish the shared runtime before its adapters. From the repository root:
 
-The runtime package lives in `packages/adaptive-react`. Build the customer
-application with `@provenly/adaptive-react` and copy the project-specific provider
-snippet from the authenticated Setup & SDK page. The SDK sends only a public
-project key, viewport dimensions, route, and bounded runtime event metadata to
-`/api/runtime/heartbeat` and `/api/runtime/events`; it never receives auth,
-database, or Bachs secrets.
+```bash
+cd packages/adaptive-runtime && npm publish --access public
+cd ../adaptive-react && npm publish --access public
+cd ../adaptive-next && npm publish --access public
+cd ../adaptive-vue && npm publish --access public
+cd ../adaptive-svelte && npm publish --access public
+cd ../adaptive-angular && npm publish --access public
+cd ../adaptive-browser && npm publish --access public
+```
 
-When `GOOGLE_AI_API_KEY` is configured on the server, a new deterministic layout
-issue is sent to Google's Gemini `generateContent` API through
-`/api/runtime/analyze` with a bounded, text-free DOM/CSS snapshot. The analyzer
-can return one allowlisted style patch for one SDK-tagged element; the SDK applies
-it only in that visitor's session, verifies the scroll boundary, and reports a
-verified or rolled-back adaptation. The Gemini key remains server-only.
+Each package builds automatically through `prepublishOnly`. The package name must remain `@provenly/...`; the old `@adaptive/*` scope is not used.
 
-If the backend is not configured, the UI surfaces that configuration error; it does not create mock users, subscriptions, usage, or billing history.
+## Add the runtime to a customer site
+
+For a React or Next.js app:
+
+```bash
+npm install @provenly/adaptive-react
+```
+
+Mount the provider once at the application root (in a client boundary for Next.js):
+
+```tsx
+'use client';
+
+import { AdaptiveProvider } from '@provenly/adaptive-react';
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <AdaptiveProvider
+      projectId="your-project-id"
+      runtimeKey="adp_pk_..."
+      apiBaseUrl="https://api.yourdomain.com"
+      autoAdapt={true}
+    >
+      {children}
+    </AdaptiveProvider>
+  );
+}
+```
+
+For a plain browser-rendered site:
+
+```bash
+npm install @provenly/adaptive-browser
+```
+
+```js
+import { init } from '@provenly/adaptive-browser';
+
+const stop = init({
+  projectKey: 'adp_pk_...',
+  apiBaseUrl: 'https://api.yourdomain.com',
+  autoAdapt: true,
+});
+
+window.addEventListener('pagehide', stop, { once: true });
+```
+
+Use the framework-specific adapter for Vue, Svelte, or Angular. Adapters are thin lifecycle wrappers; observation, AI decisions, safe strategies, verification, and rollback live in `@provenly/adaptive-runtime`.
+
+## Local development
+
+1. Install the root dependencies with `npm install`.
+2. Copy `.env.example` to `.env.local` and fill in the server values.
+3. Point `DATABASE_URL` at the Supabase transaction pooler and `DIRECT_URL` at the direct/session connection.
+4. Generate Prisma and run migrations once:
+
+   ```bash
+   cd server
+   npm run prisma:generate
+   npm run prisma:migrate
+   ```
+
+5. Start the API with `npm run dev` in `server/`.
+6. Start the Vite console with `npm run dev` from the repository root.
+
+The local console runs at `http://localhost:3000` and the API at `http://localhost:3001`. Register `http://localhost:3000/api/auth/callback/github` in the GitHub OAuth application for local sign-in.
+
+Run the checks before publishing:
+
+```bash
+npm run lint
+npm run build
+npm run check:adapters
+npm run build:adapters
+```
+
+## Production environment
+
+The API and console may be deployed separately, but the console must proxy its `/api` requests to the API or be served same-origin. Set these server-only values in the deployment environment:
+
+```dotenv
+NEXTAUTH_URL=https://app.yourdomain.com
+API_PUBLIC_ORIGIN=https://api.yourdomain.com
+GITHUB_ID=...
+GITHUB_SECRET=...
+AUTH_SECRET=...
+DATABASE_URL=your_supabase_transaction_pooler_url
+DIRECT_URL=your_supabase_direct_or_session_url
+BACHS_API_KEY=...
+BACHS_API_BASE_URL=https://api.bachs.io
+BACHS_WEBHOOK_SECRET=...
+BACHS_DEVELOPER_PRODUCT_ID=...
+BACHS_AUTOPILOT_PRODUCT_ID=...
+AI_PROVIDER=google
+GOOGLE_AI_API_KEY=...
+GOOGLE_AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta
+GOOGLE_AI_MODEL=gemini-2.5-flash
+```
+
+`API_PUBLIC_ORIGIN` is embedded in customer Setup snippets and must be a public HTTPS URL in production. Never expose `AUTH_SECRET`, database URLs, Bachs credentials, or `GOOGLE_AI_API_KEY` to the browser.
+
+Authentication is GitHub OAuth through Auth.js and application data is stored in Supabase-hosted PostgreSQL through Prisma. Supabase Auth is not used. Bachs is the billing source of truth; subscription state changes only from verified, idempotent webhooks.
+
+## Runtime behavior
+
+The browser runtime records heartbeats and bounded events for viewport, route, DOM, CSSOM, overflow, wrapping, clipping, collisions, and layout mutations. Deterministic checks identify a new anomaly. When `GOOGLE_AI_API_KEY` is configured, the API sends bounded layout context to Gemini, validates the returned strategy against an allowlist, and returns at most one scoped adaptation. The runtime verifies the result immediately and rolls it back if the layout gets worse. Changes apply only to that visitor's session.
+
+Without a Gemini key, the system still observes and reports. It returns `AI_NOT_CONFIGURED` instead of pretending that an intelligent Autofix happened.
+
+## Plans
+
+- **Free** — $0, 1 project, 2,500 monitored sessions, limited recommendations.
+- **Developer** — $7/month, 5 projects, 25,000 monitored sessions, unlimited recommendations and deployment monitoring.
+- **Autopilot** — $15/month, 10 projects, 100,000 monitored sessions, automatic fixing, verification, and rollback.
+
+The console enforces project, session, recommendation, and feature entitlements on the server. A browser-side gate is only explanatory UI.

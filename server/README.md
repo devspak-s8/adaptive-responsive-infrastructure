@@ -8,6 +8,10 @@ Set `API_PUBLIC_ORIGIN` to the externally reachable API origin in production (fo
 
 Server runtime dependencies are `@auth/express`, `@auth/prisma-adapter`, `express`, and `@prisma/client` (with `prisma` as a development dependency). Bachs is called over its server-side REST API and is kept out of the browser bundle.
 
+For the complete customer setup, published package list, production deployment
+checklist, runtime integration examples, and current plan limits, see the
+[repository README](../README.md).
+
 ## Local startup
 
 Register `http://localhost:3000/api/auth/callback/github` as the callback URL in the GitHub OAuth app. Start the API and Vite client in separate terminals:

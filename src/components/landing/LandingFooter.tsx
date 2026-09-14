@@ -21,11 +21,11 @@ export const LandingFooter: React.FC<LandingFooterProps> = ({ onNavigate }) => {
             </span>
           </div>
           <p className="text-[11px] text-[#0B0B0B]/60 leading-normal">
-            Autonomous responsive layout monitoring, real-time collision detection, and zero-regression runtime repair.
+            Real-session responsive observability, AI-assisted adaptation, and verified rollback for rendered web applications.
           </p>
           <div className="flex items-center gap-2 text-[10px] text-[#0B0B0B]/50">
             <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span>All systems operational • v2.4.1</span>
+            <span>Runtime ready • v0.1.0</span>
           </div>
         </div>
 
@@ -69,7 +69,7 @@ export const LandingFooter: React.FC<LandingFooterProps> = ({ onNavigate }) => {
                   onClick={() => onNavigate('autofix')}
                   className="hover:text-[#0B0B0B] transition-colors"
                 >
-                  Autofix Engine
+                  Runtime Adaptations
                 </button>
               </li>
             </ul>
@@ -104,7 +104,7 @@ export const LandingFooter: React.FC<LandingFooterProps> = ({ onNavigate }) => {
                   onClick={() => onNavigate('deployments')}
                   className="hover:text-[#0B0B0B] transition-colors"
                 >
-                  CI/CD Deployments
+                  Deployment Monitoring
                 </button>
               </li>
               <li>
