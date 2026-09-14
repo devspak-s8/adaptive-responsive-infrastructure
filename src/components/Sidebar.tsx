@@ -152,18 +152,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button 
             type="button"
             onClick={() => handleItemClick('overview')}
-            className="flex items-center gap-2.5 text-left group"
+            className="flex items-center text-left group"
           >
-            {/* Minimal geometric monochrome icon */}
-            <div className="w-6 h-6 border border-[#F5F3EE]/40 flex items-center justify-center rounded-[4px] bg-[#F5F3EE]/5 group-hover:border-[#F5F3EE] transition-colors flex-shrink-0">
-              <div className="w-2.5 h-2.5 border border-[#F5F3EE]/90"></div>
-            </div>
-            <div>
-              <span className="font-mono text-sm tracking-widest uppercase font-semibold text-[#F5F3EE]">
-                ADAPTIVE
+            <div className="border-l-2 border-[#F5F3EE]/65 pl-3 transition-colors group-hover:border-[#F5F3EE]">
+              <span className="block font-mono text-[15px] tracking-[0.22em] uppercase font-semibold leading-none text-[#F5F3EE]">
+                Adaptive
               </span>
-              <span className="block text-[10px] text-[#F5F3EE]/40 font-mono tracking-tight leading-none mt-0.5">
-                RUNTIME
+              <span className="block mt-1.5 text-[9px] text-[#F5F3EE]/45 font-mono tracking-[0.16em] leading-none uppercase">
+                Responsive systems
               </span>
             </div>
           </button>
