@@ -1,4 +1,4 @@
-# @provenly/runtime
+# @provenly/adaptive-runtime
 
 Framework-agnostic Adaptive runtime for rendered web applications. It observes
 the browser DOM and CSSOM, compares layout states, reports meaningful changes,
@@ -6,7 +6,7 @@ and asks the Adaptive analysis service for a validated strategy before making a
 visitor-scoped change.
 
 ```ts
-import { init } from '@provenly/runtime';
+import { init } from '@provenly/adaptive-runtime';
 
 const stop = init({
   projectKey: 'adp_pk_...',
@@ -26,11 +26,11 @@ thin lifecycle adapter when one is useful:
 
 | Application | Package |
 | --- | --- |
-| React, Next.js, Remix | `@provenly/react` or `@provenly/next` |
-| Vue, Nuxt | `@provenly/vue` |
-| Svelte, SvelteKit | `@provenly/svelte` |
-| Angular | `@provenly/angular` |
-| Astro, WordPress, Shopify, Django, Laravel, Rails, or plain HTML/JS | `@provenly/browser` |
+| React, Next.js, Remix | `@provenly/adaptive-react` or `@provenly/adaptive-next` |
+| Vue, Nuxt | `@provenly/adaptive-vue` |
+| Svelte, SvelteKit | `@provenly/adaptive-svelte` |
+| Angular | `@provenly/adaptive-angular` |
+| Astro, WordPress, Shopify, Django, Laravel, Rails, or plain HTML/JS | `@provenly/adaptive-browser` |
 
 Server-rendered frameworks do not need a server-specific integration: initialize
 the browser entry after hydration and the same rendered-page observer works

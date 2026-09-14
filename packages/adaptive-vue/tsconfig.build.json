@@ -7,7 +7,7 @@
     "outDir": "dist",
     "rootDir": "src",
     "paths": {
-      "@provenly/runtime": ["../adaptive-runtime/dist"]
+      "@provenly/adaptive-runtime": ["../adaptive-runtime/dist"]
     }
   }
 }

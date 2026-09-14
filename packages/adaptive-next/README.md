@@ -1,12 +1,12 @@
-# @provenly/next
+# @provenly/adaptive-next
 
 Next.js client integration. Use `AdaptiveNextProvider` once in a client
 boundary such as `app/providers.tsx`; the observer itself remains in
-`@provenly/runtime` and works across route transitions.
+`@provenly/adaptive-runtime` and works across route transitions.
 
 ```tsx
 'use client';
-import { AdaptiveNextProvider } from '@provenly/next';
+import { AdaptiveNextProvider } from '@provenly/adaptive-next';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return <AdaptiveNextProvider projectId="..." runtimeKey="adp_pk_..." apiBaseUrl="https://api.example.com">{children}</AdaptiveNextProvider>;

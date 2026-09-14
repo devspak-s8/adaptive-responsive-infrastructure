@@ -1,12 +1,12 @@
 {
-  "name": "@provenly/vue",
+  "name": "@provenly/adaptive-vue",
   "version": "0.1.0",
   "description": "Vue and Nuxt lifecycle integration for the Adaptive runtime.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": ["dist"],
-  "dependencies": { "@provenly/runtime": "0.1.0" },
+  "dependencies": { "@provenly/adaptive-runtime": "0.1.0" },
   "peerDependencies": { "vue": ">=3" },
   "scripts": { "prebuild": "node ../../scripts/clean-package-dist.mjs", "check": "tsc -p tsconfig.json", "build": "tsc -p tsconfig.build.json", "prepublishOnly": "npm run build" }
 }

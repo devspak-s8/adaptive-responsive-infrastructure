@@ -12,7 +12,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
   onOpenGitHubAuth,
 }) => {
   const [copied, setCopied] = useState(false);
-  const cliCommand = 'npx @provenly/cli audit --all-viewports';
+  const cliCommand = 'npx @provenly/adaptive-cli audit --all-viewports';
 
   const handleCopy = () => {
     navigator.clipboard.writeText(cliCommand);

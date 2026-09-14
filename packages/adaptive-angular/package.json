@@ -1,5 +1,5 @@
 {
-  "name": "@provenly/angular",
+  "name": "@provenly/adaptive-angular",
   "version": "0.1.0",
   "description": "Angular-friendly lifecycle wrapper for the framework-agnostic Adaptive runtime.",
   "type": "module",
@@ -13,7 +13,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@provenly/runtime": "0.1.0"
+    "@provenly/adaptive-runtime": "0.1.0"
   },
   "peerDependencies": {
     "@angular/core": ">=15"

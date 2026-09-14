@@ -1,5 +1,5 @@
 {
-  "name": "@provenly/react",
+  "name": "@provenly/adaptive-react",
   "version": "0.1.0",
   "description": "Adaptive responsive runtime observer for React applications.",
   "type": "module",
@@ -7,7 +7,7 @@
   "types": "./dist/index.d.ts",
   "files": ["dist"],
   "dependencies": {
-    "@provenly/runtime": "0.1.0"
+    "@provenly/adaptive-runtime": "0.1.0"
   },
   "peerDependencies": {
     "react": ">=18"
