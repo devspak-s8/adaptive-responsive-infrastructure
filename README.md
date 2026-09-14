@@ -13,7 +13,7 @@ Frontend console for responsive layout monitoring, regression detection, and run
 
 Authentication is GitHub OAuth through Auth.js. The browser talks to server-owned `/api/auth/*` endpoints; OAuth tokens and plan state are never trusted from the client.
 
-Application data belongs in Supabase-hosted PostgreSQL through Prisma; Supabase Auth is not used. Use the pooled Supabase connection in `DATABASE_URL` and the direct connection in `DIRECT_URL` for migrations. Bachs is the source of truth for paid subscriptions; local entitlements are updated only by verified, idempotent Bachs webhooks. Configure the variables in `.env.example`, including the Bachs product IDs for Developer ($7/month) and Autopilot ($15/month).
+Application data belongs in Supabase-hosted PostgreSQL through Prisma; Supabase Auth is not used. Use the pooled Supabase connection in `DATABASE_URL` and the direct connection in `DIRECT_URL` for migrations. Bachs is the source of truth for paid subscriptions; local entitlements are updated only by verified, idempotent Bachs webhooks. Configure the variables in `.env.example`, including the Bachs product IDs for Developer ($5/month) and Autopilot ($15/month).
 
 The frontend expects these server endpoints:
 

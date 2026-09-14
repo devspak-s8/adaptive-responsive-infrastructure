@@ -18,6 +18,7 @@ interface BillingStatus {
 }
 
 const usagePercent = (used: number, limit: number) => Math.min(100, Math.round((used / Math.max(limit, 1)) * 100));
+const limitLabel = (limit: number): string => limit === Infinity ? 'Unlimited' : limit.toLocaleString();
 
 export const BillingView: React.FC<BillingViewProps> = ({ onNavigate }) => {
   const [status, setStatus] = useState<BillingStatus | null>(null);
@@ -124,21 +125,21 @@ export const BillingView: React.FC<BillingViewProps> = ({ onNavigate }) => {
               <div>
                 <p className="text-[11px] font-mono uppercase tracking-wider text-[#0B0B0B]/50">Current plan</p>
                 <h2 className="mt-2 text-2xl font-semibold">{plan.name}</h2>
-                <p className="mt-1 text-sm text-[#0B0B0B]/60">${plan.priceMonthly}/month · {status.status.toLowerCase().replace('_', ' ')}</p>
+                <p className="mt-1 text-sm text-[#0B0B0B]/60">${plan.priceMonthly}/month - {status.status.toLowerCase().replace('_', ' ')}</p>
                 {periodEnd && <p className="mt-2 text-xs font-mono text-[#0B0B0B]/55">{status.cancelAtPeriodEnd ? 'Ends' : 'Renews'} {periodEnd}</p>}
               </div>
               {status.plan !== 'free' && (
                 <button type="button" onClick={() => void openPortal()} disabled={portalLoading} className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#0B0B0B] text-[#F5F3EE] rounded-md text-xs font-mono hover:bg-[#0B0B0B]/85 disabled:opacity-60">
-                  {portalLoading ? 'Opening…' : 'Manage billing'} <ExternalLink className="w-3.5 h-3.5" />
+                  {portalLoading ? 'Opening...' : 'Manage billing'} <ExternalLink className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
 
             <div className="mt-7 grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[
-                { label: 'Projects', used: status.projectsUsed, limit: plan.projects, value: `${status.projectsUsed} / ${plan.projects}` },
+                { label: 'Projects', used: status.projectsUsed, limit: plan.projects, value: `${status.projectsUsed} / ${limitLabel(plan.projects)}` },
                 { label: 'Monitored sessions', used: status.monitoredSessions, limit: plan.monthlySessions, value: `${status.monitoredSessions.toLocaleString()} / ${plan.monthlySessions.toLocaleString()}` },
-                { label: 'Recommendations', used: status.recommendationsGenerated, limit: plan.codeRecommendations, value: `${status.recommendationsGenerated.toLocaleString()} / ${plan.codeRecommendations === Infinity ? '∞' : plan.codeRecommendations}` },
+                { label: 'Recommendations', used: status.recommendationsGenerated, limit: plan.codeRecommendations, value: `${status.recommendationsGenerated.toLocaleString()} / ${plan.codeRecommendations === Infinity ? 'unlimited' : plan.codeRecommendations}` },
               ].map((metric) => (
                 <div key={metric.label} className="border border-[#0B0B0B]/10 rounded-md p-4">
                   <div className="flex items-center justify-between gap-2"><p className="text-xs text-[#0B0B0B]/55">{metric.label}</p><p className="font-mono text-xs text-[#0B0B0B]/60">{metric.value}</p></div>
