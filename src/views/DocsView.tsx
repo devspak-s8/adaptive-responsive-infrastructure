@@ -97,7 +97,7 @@ export const DocsView: React.FC<DocsViewProps> = ({ onNavigate, userSession }) =
           <aside className="lg:col-span-3 border border-[#0B0B0B]/15 rounded-lg p-4 bg-[#F5F3EE] sticky top-20">
             <div className="text-[11px] font-mono uppercase tracking-wider text-[#0B0B0B]/50 px-2 mb-3">Documentation Index</div>
             <nav className="space-y-1 font-mono text-xs">{navItems.map((item) => <button key={item.id} type="button" onClick={() => setActiveSection(item.id)} className={`w-full px-3 py-2 rounded-md text-left ${activeSection === item.id ? 'bg-[#0B0B0B] text-[#F5F3EE] font-medium' : 'text-[#0B0B0B]/70 hover:text-[#0B0B0B] hover:bg-[#0B0B0B]/5'}`}>{item.title}</button>)}</nav>
-            <div className="mt-8 pt-4 border-t border-[#0B0B0B]/10 px-2"><div className="text-[10px] font-mono text-[#0B0B0B]/40 uppercase tracking-wider">Published packages</div><div className="mt-2 text-[11px] font-mono">@provenly/adaptive-*</div><div className="text-[11px] font-mono text-[#0B0B0B]/50">v0.1.0</div></div>
+            <div className="mt-8 pt-4 border-t border-[#0B0B0B]/10 px-2"><div className="text-[10px] font-mono text-[#0B0B0B]/40 uppercase tracking-wider">Published packages</div><div className="mt-2 text-[11px] font-mono">@provenly/adaptive-*</div><div className="text-[11px] font-mono text-[#0B0B0B]/50">v0.1.1</div></div>
           </aside>
 
           <article className="lg:col-span-9 bg-[#F5F3EE] border border-[#0B0B0B]/15 rounded-lg p-6 sm:p-8 space-y-8 min-w-0">

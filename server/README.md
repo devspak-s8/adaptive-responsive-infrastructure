@@ -49,6 +49,11 @@ strategies before it is returned to the SDK. AI calls count against the plan's
 recommendation allowance; the key remains server-only. `AI_PROVIDER` defaults to
 `google`, and `GOOGLE_AI_MODEL` defaults to `gemini-2.5-flash`.
 
+Visual evidence is persisted with responsive issues and runtime adaptations as
+bounded, text-free SVG layout snapshots. The dashboard's Issues page exposes a
+Visual view and issue detail comparisons. The API rejects arbitrary SVG scripts,
+event attributes, and oversized snapshots before storage.
+
 ## Authorization
 
 Every project and issue route must authenticate the request, verify resource ownership, load the user’s effective subscription, then call the shared functions in `server/entitlements.ts`. Return typed errors such as `PLAN_PROJECT_LIMIT_REACHED` and `FEATURE_NOT_AVAILABLE`; frontend gates are only explanatory UX.

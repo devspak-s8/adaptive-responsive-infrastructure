@@ -1,12 +1,12 @@
 {
   "name": "@provenly/adaptive-next",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Next.js integration for the Adaptive framework-agnostic runtime.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": ["dist"],
-  "dependencies": { "@provenly/adaptive-react": "0.1.0", "@provenly/adaptive-runtime": "0.1.0" },
+  "dependencies": { "@provenly/adaptive-react": "0.1.1", "@provenly/adaptive-runtime": "0.1.1" },
   "peerDependencies": { "next": ">=13", "react": ">=18", "react-dom": ">=18" },
   "scripts": { "prebuild": "node ../../scripts/clean-package-dist.mjs", "check": "tsc -p tsconfig.json", "build": "tsc -p tsconfig.build.json", "prepublishOnly": "npm run build" }
 }

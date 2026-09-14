@@ -325,6 +325,55 @@ const runtimeMetadata = (value: unknown, maxLength = 4000): Record<string, unkno
   }
 };
 
+// Runtime visual evidence is generated as a text-only SVG layout graph. Keep
+// it bounded and reject anything that could execute when rendered in the
+// console. This gives the dashboard useful before/after evidence without
+// storing page text, form values, or arbitrary customer HTML.
+const runtimeVisualSnapshot = (value: unknown): string | null => {
+  const prefix = 'data:image/svg+xml;charset=utf-8,';
+  if (typeof value !== 'string' || !value.startsWith(prefix) || value.length > 40_000) return null;
+  try {
+    const markup = decodeURIComponent(value.slice(prefix.length));
+    if (!markup.trimStart().startsWith('<svg') || /<script\b|javascript:|\son[a-z]+\s*=/i.test(markup)) return null;
+  } catch {
+    return null;
+  }
+  return value;
+};
+
+const visualEvidence = (metadata: Record<string, unknown>): { before: string | null; after: string | null; beforeQuality: number | null; afterQuality: number | null } => {
+  const nested = metadataObject(metadata.visualEvidence);
+  const before = runtimeVisualSnapshot(metadata.beforeVisualSnapshot ?? nested?.before);
+  const after = runtimeVisualSnapshot(metadata.afterVisualSnapshot ?? nested?.after);
+  const quality = (value: unknown): number | null => typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.min(100, Math.round(value))) : null;
+  return {
+    before,
+    after,
+    beforeQuality: quality(metadata.beforeQuality ?? nested?.beforeQuality),
+    afterQuality: quality(metadata.afterQuality ?? nested?.afterQuality),
+  };
+};
+
+const mergeAffectedViewports = (existing: unknown, viewport: { width: number | null; height: number | null }, seenAt: Date, increment = true): Prisma.InputJsonValue => {
+  const values = Array.isArray(existing) ? existing : [];
+  const entries = values
+    .map((value) => metadataObject(value))
+    .filter((value): value is Record<string, unknown> => Boolean(value))
+    .map((value) => ({
+      width: metadataNumber(value.width),
+      height: metadataNumber(value.height),
+      count: Math.max(1, metadataNumber(value.count) ?? 1),
+      lastSeenAt: runtimeValue(value.lastSeenAt, 40) ?? seenAt.toISOString(),
+    }))
+    .filter((value): value is { width: number; height: number; count: number; lastSeenAt: string } => value.width !== null && value.height !== null);
+  if (viewport.width !== null && viewport.height !== null) {
+    const match = entries.find((value) => value.width === viewport.width && value.height === viewport.height);
+    if (match) { if (increment) match.count += 1; match.lastSeenAt = seenAt.toISOString(); }
+    else entries.push({ width: viewport.width, height: viewport.height, count: 1, lastSeenAt: seenAt.toISOString() });
+  }
+  return entries.sort((a, b) => b.count - a.count).slice(0, 32) as unknown as Prisma.InputJsonValue;
+};
+
 const metadataNumber = (value: unknown): number | null =>
   typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : null;
 
@@ -366,6 +415,8 @@ const upsertRuntimeIssue = async (projectId: string, payload: {
   rootScrollWidth?: number | null;
   severity?: string | null;
   confidence?: number | null;
+  beforeVisualSnapshot?: string | null;
+  afterVisualSnapshot?: string | null;
 }) => {
   const route = payload.path ?? '/';
   const element = targetLabel(payload.target);
@@ -383,6 +434,9 @@ const upsertRuntimeIssue = async (projectId: string, payload: {
   const severity = normalizedSeverity === 'high' ? 'High' : normalizedSeverity === 'low' ? 'Low' : normalizedSeverity === 'medium' ? 'Medium' : issueSeverity(rootScrollWidth, payload.viewport.width);
   const titlePrefix = category === 'collision' ? 'Element collision' : category === 'wrapping' ? 'Unexpected text wrapping' : category === 'modal' ? 'Modal positioning issue' : category === 'container' ? 'Responsive container issue' : 'Horizontal overflow';
   const now = new Date();
+  const existing = await prisma.responsiveIssueRecord.findUnique({ where: { projectId_fingerprint: { projectId, fingerprint } } });
+  const isNewSessionOccurrence = !existing || existing.sessionId !== payload.sessionId;
+  const affectedViewports = mergeAffectedViewports(existing?.affectedViewports, payload.viewport, now, isNewSessionOccurrence);
   return prisma.responsiveIssueRecord.upsert({
     where: { projectId_fingerprint: { projectId, fingerprint } },
     create: {
@@ -402,6 +456,9 @@ const upsertRuntimeIssue = async (projectId: string, payload: {
       cause: rootScrollWidth && payload.viewport.width ? `Content is ${rootScrollWidth - payload.viewport.width}px wider than the viewport.` : `${category} anomaly detected from layout relationships.`,
       currentCss,
       recommendedFix: category === 'collision' ? 'Compact or wrap the colliding controls at this viewport.' : category === 'wrapping' ? 'Allow content to wrap without breaking the component boundary.' : 'Apply a scoped, reversible responsive constraint to this element.',
+      beforeVisualSnapshot: payload.beforeVisualSnapshot ?? null,
+      afterVisualSnapshot: payload.afterVisualSnapshot ?? null,
+      affectedViewports,
       occurrenceCount: 1,
       firstSeenAt: now,
       lastSeenAt: now,
@@ -417,7 +474,10 @@ const upsertRuntimeIssue = async (projectId: string, payload: {
       availableWidth: metadataNumber(payload.target.clientWidth),
       cause: rootScrollWidth && payload.viewport.width ? `Content is ${rootScrollWidth - payload.viewport.width}px wider than the viewport.` : undefined,
       currentCss: currentCss ?? undefined,
-      occurrenceCount: { increment: 1 },
+      beforeVisualSnapshot: payload.beforeVisualSnapshot ?? undefined,
+      afterVisualSnapshot: payload.afterVisualSnapshot ?? undefined,
+      affectedViewports,
+      occurrenceCount: isNewSessionOccurrence ? { increment: 1 } : undefined,
       lastSeenAt: now,
       metadata: payload.target as Prisma.InputJsonValue,
     },
@@ -436,6 +496,7 @@ const persistLayoutIssue = async (projectId: string, sessionId: string, path: st
   const targets = Array.isArray(metadata.targets) ? metadata.targets : [];
   const anomalies = Array.isArray(metadata.anomalies) ? metadata.anomalies : [];
   const rootScrollWidth = metadataNumber(metadata.rootScrollWidth);
+  const evidence = visualEvidence(metadata);
   const records = [];
   const candidates = anomalies.length > 0
     ? anomalies.flatMap((value) => {
@@ -456,6 +517,8 @@ const persistLayoutIssue = async (projectId: string, sessionId: string, path: st
       rootScrollWidth,
       severity: candidate.severity,
       confidence: candidate.confidence,
+      beforeVisualSnapshot: evidence.before,
+      afterVisualSnapshot: evidence.after,
     }));
   }
   return records;
@@ -474,7 +537,8 @@ const persistRuntimeAdaptation = async (projectId: string, sessionId: string, pa
   const issue = linkedIssueId
     ? await prisma.responsiveIssueRecord.findFirst({ where: { id: linkedIssueId, projectId } })
     : await prisma.responsiveIssueRecord.findUnique({ where: { projectId_fingerprint: { projectId, fingerprint } } });
-  return prisma.runtimeAdaptation.create({
+  const evidence = visualEvidence(metadata);
+  const adaptation = await prisma.runtimeAdaptation.create({
     data: {
       projectId,
       issueId: issue?.id,
@@ -485,10 +549,24 @@ const persistRuntimeAdaptation = async (projectId: string, sessionId: string, pa
       element: targetId,
       strategy: [runtimeValue(metadata.strategy, 80), runtimeValue(metadata.reason, 240)].filter(Boolean).join(' - ') || `Set ${property} to ${value}`,
       css: { targetId, property, value } as Prisma.InputJsonValue,
+      beforeVisualSnapshot: evidence.before,
+      afterVisualSnapshot: evidence.after,
+      beforeQuality: evidence.beforeQuality,
+      afterQuality: evidence.afterQuality,
       verified: status === 'verified',
       rolledBack: status === 'rolled_back',
     },
   });
+  if (issue && (evidence.before || evidence.after)) {
+    await prisma.responsiveIssueRecord.update({
+      where: { id: issue.id },
+      data: {
+        beforeVisualSnapshot: evidence.before ?? undefined,
+        afterVisualSnapshot: evidence.after ?? undefined,
+      },
+    });
+  }
+  return adaptation;
 };
 
 const allowedAdaptationProperties = new Set([
@@ -586,8 +664,8 @@ const googleResponseContent = (payload: Record<string, unknown>): string | null 
   if (!first || typeof first !== 'object') return null;
   const content = (first as Record<string, unknown>).content;
   if (!content || typeof content !== 'object') return null;
-  const parts = Array.isArray((content as Record<string, unknown>).parts)
-    ? (content as Record<string, unknown>).parts
+  const parts: unknown[] = Array.isArray((content as Record<string, unknown>).parts)
+    ? (content as Record<string, unknown>).parts as unknown[]
     : [];
   const text = parts
     .filter((part): part is Record<string, unknown> => Boolean(part && typeof part === 'object'))
@@ -863,7 +941,7 @@ app.post('/api/runtime/events', runtimeCors, async (request, response) => {
   const allowedTypes = new Set(['layout_issue', 'adaptation', 'error', 'navigation']);
   if (!allowedTypes.has(type)) return response.status(400).json({ error: 'Unsupported runtime event type.', code: 'EVENT_INVALID' });
   const viewport = runtimeViewport(request.body?.viewport);
-  const metadata = runtimeMetadata(request.body?.metadata);
+  const metadata = runtimeMetadata(request.body?.metadata, 120_000);
   try {
     await touchRuntimeSession(project, sessionId);
     await prisma.runtimeEvent.create({
@@ -1025,6 +1103,10 @@ app.get('/api/dashboard', async (request, response) => {
     orderBy: { createdAt: 'desc' },
     take: 200,
   }) : [];
+  const latestAdaptationByIssue = new Map<string, typeof adaptationRecords[number]>();
+  for (const adaptation of adaptationRecords) {
+    if (adaptation.issueId && !latestAdaptationByIssue.has(adaptation.issueId)) latestAdaptationByIssue.set(adaptation.issueId, adaptation);
+  }
   const viewportRecords = new Map<string, typeof runtimeEvents[number]>();
   for (const event of runtimeEvents) {
     if (event.viewportWidth === null || event.viewportHeight === null) continue;
@@ -1048,6 +1130,12 @@ app.get('/api/dashboard', async (request, response) => {
     };
   });
   const issueResponse = issueRecords.map((issue) => ({
+    adaptation: latestAdaptationByIssue.get(issue.id) ? {
+      result: latestAdaptationByIssue.get(issue.id)?.rolledBack ? 'Rolled Back' : latestAdaptationByIssue.get(issue.id)?.verified ? 'Verified' : 'Monitoring',
+      strategy: latestAdaptationByIssue.get(issue.id)?.strategy,
+      beforeQuality: latestAdaptationByIssue.get(issue.id)?.beforeQuality ?? undefined,
+      afterQuality: latestAdaptationByIssue.get(issue.id)?.afterQuality ?? undefined,
+    } : undefined,
     id: issue.id,
     title: issue.title,
     route: issue.route ?? '/',
@@ -1063,6 +1151,9 @@ app.get('/api/dashboard', async (request, response) => {
     currentCss: issue.currentCss ?? undefined,
     recommendedFix: issue.recommendedFix ?? undefined,
     category: issue.category,
+    beforeVisualSnapshot: issue.beforeVisualSnapshot ?? latestAdaptationByIssue.get(issue.id)?.beforeVisualSnapshot ?? undefined,
+    afterVisualSnapshot: issue.afterVisualSnapshot ?? latestAdaptationByIssue.get(issue.id)?.afterVisualSnapshot ?? undefined,
+    affectedViewports: Array.isArray(issue.affectedViewports) ? issue.affectedViewports : [],
   }));
   const autofixResponse = adaptationRecords.map((adaptation) => ({
     id: adaptation.id,
@@ -1072,13 +1163,17 @@ app.get('/api/dashboard', async (request, response) => {
     result: adaptation.rolledBack ? 'Rolled Back' : adaptation.verified ? 'Verified' : 'Monitoring',
     time: adaptation.createdAt.toISOString(),
     diffSummary: adaptation.css && typeof adaptation.css === 'object' ? JSON.stringify(adaptation.css) : undefined,
+    beforeVisualSnapshot: adaptation.beforeVisualSnapshot ?? undefined,
+    afterVisualSnapshot: adaptation.afterVisualSnapshot ?? undefined,
+    beforeQuality: adaptation.beforeQuality ?? undefined,
+    afterQuality: adaptation.afterQuality ?? undefined,
   }));
   const activityResponse = [
     ...issueRecords.map((issue) => ({
       id: `issue-${issue.id}`,
       type: 'issue',
       title: issue.title,
-      description: `${issue.occurrenceCount} runtime detection${issue.occurrenceCount === 1 ? '' : 's'} recorded`,
+      description: `${issue.occurrenceCount} affected session${issue.occurrenceCount === 1 ? '' : 's'} recorded`,
       route: issue.route ?? undefined,
       viewport: issue.viewportWidth && issue.viewportHeight ? `${issue.viewportWidth} × ${issue.viewportHeight}` : undefined,
       time: issue.lastSeenAt.toISOString(),

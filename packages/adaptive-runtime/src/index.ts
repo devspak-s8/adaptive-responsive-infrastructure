@@ -149,7 +149,8 @@ const visualSnapshot = (nodes: LayoutTarget[], anomalies: LayoutAnomaly[]): stri
     const w = Math.max(1, Math.min(width - x, node.rect.width));
     const h = Math.max(1, Math.min(height - y, node.rect.height));
     const highlighted = affected.has(node.targetId);
-    const label = escapeXml((node.id ? `#${node.id}` : node.role ?? node.tag).slice(0, 28));
+    const labelSource = ['input', 'textarea', 'select', 'option'].includes(node.tag) ? node.tag : (node.id ? `#${node.id}` : node.role ?? node.tag);
+    const label = escapeXml(labelSource.slice(0, 28));
     return `<g><rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${highlighted ? '#fee2e2' : '#f8fafc'}" fill-opacity="${highlighted ? '.72' : '.38'}" stroke="${highlighted ? '#b91c1c' : '#64748b'}" stroke-opacity=".5"/><text x="${x + 3}" y="${Math.min(height - 3, y + 12)}" font-family="monospace" font-size="10" fill="${highlighted ? '#991b1b' : '#334155'}">${label}</text></g>`;
   }).join('');
   const encoded = encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="white"/>${shapes}</svg>`);
@@ -202,7 +203,7 @@ export const startAdaptiveRuntime = (options: AdaptiveRuntimeOptions): StopAdapt
     const width = window.innerWidth;
     const records: Array<{ element: HTMLElement; node: LayoutTarget }> = [];
     for (const element of Array.from(document.querySelectorAll<HTMLElement>('body *')).slice(0, 260)) {
-      if (element.hasAttribute('data-adaptive-ignore')) continue;
+      if (element.closest('[data-adaptive-ignore], [data-adaptive-private]')) continue;
       const rect = element.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) records.push({ element, node: snapshot(element) });
     }
@@ -224,15 +225,18 @@ export const startAdaptiveRuntime = (options: AdaptiveRuntimeOptions): StopAdapt
     }
     return { nodes: records.map(({ node }) => node).slice(0, 180), anomalies };
   };
-  const apply = async (adaptation: Adaptation, beforeScrollWidth: number) => {
+  const apply = async (adaptation: Adaptation, beforeScrollWidth: number, beforeVisualSnapshot?: string) => {
     const target = document.querySelector<HTMLElement>(`[data-adaptive-target="${escapeSelector(adaptation.targetId)}"]`);
     if (!target) return;
     const old = target.style.getPropertyValue(adaptation.property); const priority = target.style.getPropertyPriority(adaptation.property);
     target.style.setProperty(adaptation.property, adaptation.value); await nextFrame(); await nextFrame();
     const afterScrollWidth = Math.max(document.documentElement.scrollWidth, document.body?.scrollWidth ?? 0);
+    const afterGraph = graph();
+    const afterVisualSnapshot = visualSnapshot(afterGraph.nodes, [{ kind: 'adaptation', severity: 'low', confidence: 1, targetIds: [adaptation.targetId], metrics: {} }]);
+    const quality = (scrollWidth: number) => Math.max(0, Math.min(100, Math.round(100 - Math.max(0, scrollWidth - window.innerWidth) / Math.max(window.innerWidth, 1) * 100)));
     const improved = adaptation.strategy ? afterScrollWidth <= beforeScrollWidth : afterScrollWidth < beforeScrollWidth;
     if (!improved) { if (old) target.style.setProperty(adaptation.property, old, priority); else target.style.removeProperty(adaptation.property); }
-    enqueue({ type: 'adaptation', path: pagePath(), viewport: viewport(), metadata: { status: improved ? 'verified' : 'rolled_back', targetId: adaptation.targetId, issueId: adaptation.issueId, property: adaptation.property, value: adaptation.value, reason: adaptation.reason, strategy: adaptation.strategy, beforeScrollWidth, afterScrollWidth } });
+    enqueue({ type: 'adaptation', path: pagePath(), viewport: viewport(), metadata: { status: improved ? 'verified' : 'rolled_back', targetId: adaptation.targetId, issueId: adaptation.issueId, property: adaptation.property, value: adaptation.value, reason: adaptation.reason, strategy: adaptation.strategy, beforeScrollWidth, afterScrollWidth, beforeQuality: quality(beforeScrollWidth), afterQuality: quality(afterScrollWidth), visualEvidence: { before: beforeVisualSnapshot, after: afterVisualSnapshot, beforeQuality: quality(beforeScrollWidth), afterQuality: quality(afterScrollWidth) } } });
     if (improved) schedule();
   };
   const analyze = async (targets: LayoutTarget[], signals: LayoutAnomaly[], current: LayoutTarget[], prior: LayoutTarget[], beforeScrollWidth: number, currentVisual?: string, previousVisual?: string) => {
@@ -242,7 +246,7 @@ export const startAdaptiveRuntime = (options: AdaptiveRuntimeOptions): StopAdapt
     if (!adaptation) return;
     const issueIds = payload?.issueIds && typeof payload.issueIds === 'object' ? payload.issueIds as Record<string, unknown> : {};
     const issueId = typeof issueIds[adaptation.targetId] === 'string' ? issueIds[adaptation.targetId] as string : undefined;
-    await apply({ ...adaptation, issueId }, beforeScrollWidth);
+    await apply({ ...adaptation, issueId }, beforeScrollWidth, currentVisual);
   };
   const run = async () => {
     if (stopped || checking) return;
@@ -250,7 +254,7 @@ export const startAdaptiveRuntime = (options: AdaptiveRuntimeOptions): StopAdapt
     const dimensions = viewport(); const rootScrollWidth = Math.max(document.documentElement.scrollWidth, document.body?.scrollWidth ?? 0); const currentGraph = graph();
     const currentState: LayoutState = { path: pagePath(), viewport: dimensions, nodes: currentGraph.nodes }; const prior = previous; const signals = [...currentGraph.anomalies, ...compareStates(prior, currentState)].slice(0, 24); const currentVisual = signals.length ? visualSnapshot(currentGraph.nodes, signals) : undefined; currentState.visualSnapshot = currentVisual; previous = currentState;
     const targets = Array.from(new Map(signals.flatMap((signal) => signal.targetIds).map((id) => currentGraph.nodes.find((node) => node.targetId === id)).filter((node): node is LayoutTarget => Boolean(node)).map((node) => [node.targetId, node] as const)).values()).slice(0, 8);
-    if (signals.length) { const signature = `${pagePath()}|${dimensions.width}x${dimensions.height}|${signals.map((signal) => `${signal.kind}:${signal.targetIds.join(',')}`).join('|')}`; if (!seen.has(signature)) { seen.add(signature); enqueue({ type: 'layout_issue', path: pagePath(), viewport: dimensions, metadata: { issue: signals[0].kind, rootScrollWidth, targets, graph: currentGraph.nodes, anomalies: signals } }); void analyze(targets, signals, currentGraph.nodes, prior?.nodes ?? [], rootScrollWidth, currentVisual, prior?.visualSnapshot); } }
+    if (signals.length) { const signature = `${pagePath()}|${dimensions.width}x${dimensions.height}|${signals.map((signal) => `${signal.kind}:${signal.targetIds.join(',')}`).join('|')}`; if (!seen.has(signature)) { seen.add(signature); enqueue({ type: 'layout_issue', path: pagePath(), viewport: dimensions, metadata: { issue: signals[0].kind, rootScrollWidth, targets, graph: targets, anomalies: signals, visualEvidence: { before: currentVisual, previous: prior?.visualSnapshot } } }); void analyze(targets, signals, currentGraph.nodes, prior?.nodes ?? [], rootScrollWidth, currentVisual, prior?.visualSnapshot); } }
     checking = false;
   };
   function schedule() { if (!stopped) { if (checkTimer !== undefined) window.clearTimeout(checkTimer); checkTimer = window.setTimeout(() => { checkTimer = undefined; void run(); }, 100); } }

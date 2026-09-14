@@ -58,6 +58,17 @@ export interface ResponsiveIssue {
   currentCss?: string;
   recommendedFix?: string;
   category: 'overflow' | 'collision' | 'wrapping' | 'modal' | 'container';
+  beforeVisualSnapshot?: string;
+  afterVisualSnapshot?: string;
+  beforeQuality?: number;
+  afterQuality?: number;
+  affectedViewports?: { width: number; height: number; count: number; lastSeenAt?: string }[];
+  adaptation?: {
+    result: 'Verified' | 'Monitoring' | 'Rolled Back';
+    strategy?: string;
+    beforeQuality?: number;
+    afterQuality?: number;
+  };
 }
 
 export interface AutofixRecord {
@@ -68,6 +79,10 @@ export interface AutofixRecord {
   result: 'Verified' | 'Monitoring' | 'Rolled Back';
   time: string;
   diffSummary?: string;
+  beforeVisualSnapshot?: string;
+  afterVisualSnapshot?: string;
+  beforeQuality?: number;
+  afterQuality?: number;
 }
 
 export interface ProjectItem {

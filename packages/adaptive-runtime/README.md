@@ -18,6 +18,17 @@ The runtime only executes allowlisted strategies and rolls back a change when
 verification does not improve the rendered layout. Without an AI key on the
 analysis service it observes and reports but does not autofix.
 
+## Visual evidence
+
+When a meaningful layout anomaly is observed, the runtime generates a bounded,
+text-free SVG layout snapshot. If an adaptation is attempted, it captures the
+post-adaptation snapshot and sends both as visual evidence with the issue and
+adaptation event. The console can show the before/after comparison without
+capturing page text, form values, passwords, or arbitrary HTML. Evidence is
+visitor-scoped and only generated for detected anomalies, not every session.
+Add `data-adaptive-ignore` or `data-adaptive-private` to a region that should
+not be included in layout evidence.
+
 ## Framework adapters
 
 The runtime is the only package that owns DOM/CSSOM observation, layout graph

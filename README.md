@@ -150,6 +150,14 @@ The browser runtime records heartbeats and bounded events for viewport, route, D
 
 Without a Gemini key, the system still observes and reports. It returns `AI_NOT_CONFIGURED` instead of pretending that an intelligent Autofix happened.
 
+When a meaningful anomaly is detected, the runtime also records a bounded,
+text-free visual evidence snapshot. After an adaptation it records the second
+snapshot and verification result. Open **Issues → Visual** to compare the
+affected state, adapted state, and grouped viewport occurrences. No screenshot
+is captured for every session, and inputs or page text are not included.
+Mark a region with `data-adaptive-ignore` or `data-adaptive-private` to omit it
+from the visual evidence graph.
+
 ## Plans
 
 - **Free** — $0, 1 project, 2,500 monitored sessions, limited recommendations.

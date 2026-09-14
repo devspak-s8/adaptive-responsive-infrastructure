@@ -157,6 +157,9 @@ model ResponsiveIssueRecord {
   cause            String?
   currentCss       String?
   recommendedFix   String?
+  beforeVisualSnapshot String? @db.Text
+  afterVisualSnapshot  String? @db.Text
+  affectedViewports Json?
   occurrenceCount  Int      @default(1)
   firstSeenAt      DateTime @default(now())
   lastSeenAt       DateTime @updatedAt
@@ -178,6 +181,10 @@ model RuntimeAdaptation {
   element        String?
   strategy       String
   css            Json?
+  beforeVisualSnapshot String? @db.Text
+  afterVisualSnapshot  String? @db.Text
+  beforeQuality  Int?
+  afterQuality   Int?
   verified       Boolean @default(false)
   rolledBack     Boolean @default(false)
   createdAt      DateTime @default(now())

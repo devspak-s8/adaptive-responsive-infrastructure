@@ -129,6 +129,25 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = ({
             </div>}
           </div>
 
+          {(issue.beforeVisualSnapshot || issue.afterVisualSnapshot) && <section className="space-y-3 pb-5 border-b border-[#0B0B0B]/10">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[11px] font-mono uppercase tracking-wider text-[#0B0B0B]/50">Visual evidence</span>
+              {issue.adaptation?.result && <span className="text-[10px] font-mono uppercase tracking-wider text-[#0B0B0B]/55">{issue.adaptation.result}</span>}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="border border-[#0B0B0B]/10 rounded-md overflow-hidden bg-white">
+                <div className="px-3 py-2 text-[10px] font-mono uppercase tracking-wider text-[#0B0B0B]/50 border-b border-[#0B0B0B]/10">Before</div>
+                {issue.beforeVisualSnapshot ? <img src={issue.beforeVisualSnapshot} alt="Layout before adaptation" className="w-full h-44 object-contain bg-white" loading="lazy" /> : <div className="h-44 flex items-center justify-center text-xs text-[#0B0B0B]/45">No before evidence</div>}
+              </div>
+              <div className="border border-[#0B0B0B]/10 rounded-md overflow-hidden bg-white">
+                <div className="px-3 py-2 text-[10px] font-mono uppercase tracking-wider text-[#0B0B0B]/50 border-b border-[#0B0B0B]/10">After</div>
+                {issue.afterVisualSnapshot ? <img src={issue.afterVisualSnapshot} alt="Layout after adaptation" className="w-full h-44 object-contain bg-white" loading="lazy" /> : <div className="h-44 flex items-center justify-center text-xs text-[#0B0B0B]/45 text-center px-4">No adaptation applied yet</div>}
+              </div>
+            </div>
+            {(issue.adaptation?.beforeQuality !== undefined || issue.adaptation?.afterQuality !== undefined) && <div className="flex items-center gap-3 text-xs font-mono text-[#0B0B0B]/60"><span>Quality</span><b className="text-[#0B0B0B]">{issue.adaptation.beforeQuality ?? '—'}%</b><span>→</span><b className="text-[#0B0B0B]">{issue.adaptation.afterQuality ?? '—'}%</b></div>}
+            {issue.affectedViewports && issue.affectedViewports.length > 0 && <div className="flex flex-wrap gap-1.5"><span className="text-[10px] font-mono text-[#0B0B0B]/45 self-center mr-1">Affected viewports</span>{issue.affectedViewports.map((viewport) => <span key={`${viewport.width}x${viewport.height}`} className="px-2 py-1 rounded border border-[#0B0B0B]/10 text-[10px] font-mono text-[#0B0B0B]/65">{viewport.width} × {viewport.height} · {viewport.count}</span>)}</div>}
+          </section>}
+
           {/* Width Detection Comparison */}
           {issue.detectedWidth && (
             <div className="space-y-2 pb-5 border-b border-[#0B0B0B]/10">
