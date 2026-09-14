@@ -17,7 +17,7 @@ const planDescriptions: Record<PlanId, string> = {
   autopilot: 'Let us fix it.',
 };
 
-const projectLimitLabel = (limit: number): string => limit === Infinity ? 'Unlimited*' : String(limit);
+const projectLimitLabel = (limit: number): string => String(limit);
 
 export const ConsolePricingView: React.FC<ConsolePricingViewProps> = ({ currentPlan, onNavigate }) => {
   const [checkoutLoading, setCheckoutLoading] = useState<PlanId | null>(null);

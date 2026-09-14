@@ -58,7 +58,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     id: 'autopilot',
     name: 'Autopilot',
     priceMonthly: 15,
-    projects: Number.POSITIVE_INFINITY,
+    projects: 10,
     monthlySessions: 100_000,
     codeRecommendations: Number.POSITIVE_INFINITY,
     historyDays: 90,

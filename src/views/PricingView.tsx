@@ -12,7 +12,7 @@ interface PricingViewProps {
 
 const planOrder: PlanId[] = ['free', 'developer', 'autopilot'];
 const comparisonRows: { label: string; values: string[] }[] = [
-  { label: 'Projects', values: ['2', '10', 'Unlimited*'] },
+  { label: 'Projects', values: ['2', '10', '10'] },
   { label: 'Real viewport detection', values: ['Included', 'Included', 'Included'] },
   { label: 'Responsive issue detection', values: ['Included', 'Included', 'Included'] },
   { label: 'Runtime adaptation', values: ['Included', 'Included', 'Included'] },
@@ -35,7 +35,7 @@ const comparisonRows: { label: string; values: string[] }[] = [
 const cardFeatures: Record<PlanId, string[]> = {
   free: ['2 projects', 'Real viewport monitoring', 'Responsive issue detection', 'Runtime adaptation', '5 code recommendations / month'],
   developer: ['10 projects', 'Everything in Free', 'Unlimited recommendations*', 'GitHub integration', 'Deployment monitoring', 'Responsive regression detection', 'Suggested source patches', 'GitHub issue creation'],
-  autopilot: ['Unlimited projects*', 'Everything in Developer', 'Production Autofix', 'Fix verification', 'Automatic rollback', 'Automatic fix PRs', 'Source-level fix generation', 'Auto-merge off by default'],
+  autopilot: ['10 projects', 'Everything in Developer', 'Production Autofix', 'Fix verification', 'Automatic rollback', 'Automatic fix PRs', 'Source-level fix generation', 'Auto-merge off by default'],
 };
 
 const planTaglines: Record<PlanId, string> = {
