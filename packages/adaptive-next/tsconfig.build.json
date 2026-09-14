@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "declaration": true,
+    "emitDeclarationOnly": false,
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": "src",
+    "paths": {
+      "@adaptive/react": ["../adaptive-react/dist"],
+      "@adaptive/runtime": ["../adaptive-runtime/dist"]
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "@adaptive/browser",
+  "version": "0.1.0",
+  "description": "Browser and vanilla HTML/JS entry point for the Adaptive runtime.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "check": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@adaptive/runtime": "0.1.0"
+  }
+}
