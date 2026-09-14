@@ -119,6 +119,14 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = ({
                 {issue.element}
               </span>
             </div>
+            <div>
+              <span className="text-[#0B0B0B]/40 block text-[11px] uppercase tracking-wider mb-1">Anomaly</span>
+              <span className="text-[#0B0B0B] font-medium bg-[#0B0B0B]/5 px-2 py-1 rounded block truncate">{issue.category}</span>
+            </div>
+            {issue.confidence !== undefined && <div>
+              <span className="text-[#0B0B0B]/40 block text-[11px] uppercase tracking-wider mb-1">Confidence</span>
+              <span className="text-[#0B0B0B] font-medium bg-[#0B0B0B]/5 px-2 py-1 rounded block">{Math.round(issue.confidence * 100)}%</span>
+            </div>}
           </div>
 
           {/* Width Detection Comparison */}
@@ -163,7 +171,7 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = ({
               Current CSS
             </span>
             <div className="bg-[#0B0B0B] text-[#F5F3EE] p-3 rounded-md font-mono text-xs border border-[#0B0B0B]/20 overflow-x-auto">
-              <pre className="text-xs leading-relaxed whitespace-pre">{issue.currentCss}</pre>
+                <pre className="text-xs leading-relaxed whitespace-pre">{issue.currentCss || 'No computed CSS snapshot available.'}</pre>
             </div>
           </div>
 
@@ -183,7 +191,7 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = ({
               </button>
             </div>
             <div className="bg-[#0B0B0B] text-[#F5F3EE] p-3 rounded-md font-mono text-xs border border-[#0B0B0B]/20 overflow-x-auto relative">
-              <pre className="text-xs leading-relaxed text-[#F5F3EE] whitespace-pre">{issue.recommendedFix}</pre>
+              <pre className="text-xs leading-relaxed text-[#F5F3EE] whitespace-pre">{issue.recommendedFix || 'A validated runtime strategy will be selected when the next anomaly is analyzed.'}</pre>
             </div>
           </div>
 
