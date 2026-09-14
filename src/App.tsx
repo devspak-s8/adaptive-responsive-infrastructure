@@ -128,9 +128,11 @@ export default function App() {
     let mounted = true;
     getAuthSession().then((session) => {
       if (mounted) applySession(session);
-    }).catch((error) => {
+    }).catch(() => {
       if (mounted) {
-        setAuthError('We could not verify your session. Please try again.');
+        // A background session check can fail while the API is restarting. Do
+        // not turn that transient condition into a blocking login banner.
+        setAuthError(null);
         applySession(null);
       }
     }).finally(() => { if (mounted) setAuthLoading(false); });
