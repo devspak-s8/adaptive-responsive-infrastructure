@@ -7,8 +7,8 @@
     "outDir": "dist",
     "rootDir": "src",
     "paths": {
-      "@adaptive/react": ["../adaptive-react/dist"],
-      "@adaptive/runtime": ["../adaptive-runtime/dist"]
+      "@provenly/react": ["../adaptive-react/dist"],
+      "@provenly/runtime": ["../adaptive-runtime/dist"]
     }
   }
 }

@@ -1,6 +1,6 @@
-# @adaptive/react
+# @provenly/react
 
-React integration for the framework-agnostic `@adaptive/runtime`. The provider
+React integration for the framework-agnostic `@provenly/runtime`. The provider
 is intentionally thin; the observer works from rendered DOM and CSSOM rather
 than React internals.
 
@@ -12,7 +12,7 @@ patch back if the layout does not improve. Adaptations stay in the current
 visitor session and are reported as telemetry.
 
 ```tsx
-import { AdaptiveProvider } from '@adaptive/react';
+import { AdaptiveProvider } from '@provenly/react';
 
 export default function App({ children }) {
   return (

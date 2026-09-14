@@ -1,5 +1,5 @@
 {
-  "name": "@adaptive/runtime",
+  "name": "@provenly/runtime",
   "version": "0.1.0",
   "description": "Framework-agnostic Adaptive observer and responsive layout runtime.",
   "type": "module",

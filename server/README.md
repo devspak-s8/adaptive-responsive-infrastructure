@@ -32,7 +32,7 @@ Implement `/api/billing/checkout`, `/api/billing/portal`, and `/api/billing/stat
 ## Runtime ingestion
 
 Projects receive a public `adp_pk_...` runtime key. The authenticated Setup & SDK
-page returns that key and the API origin for the `@adaptive/react` provider.
+page returns that key and the API origin for the `@provenly/react` provider.
 Runtime requests authenticate with `X-Adaptive-Runtime-Key` and never use the
 Auth.js session. Heartbeats and bounded events are stored in `RuntimeSession`
 and `RuntimeEvent`; new sessions increment the owner's monthly monitored-session

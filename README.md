@@ -22,7 +22,7 @@ The frontend expects these server endpoints:
 - `/api/billing/status`, `/api/billing/checkout`, `/api/billing/portal`
 
 The runtime package lives in `packages/adaptive-react`. Build the customer
-application with `@adaptive/react` and copy the project-specific provider
+application with `@provenly/react` and copy the project-specific provider
 snippet from the authenticated Setup & SDK page. The SDK sends only a public
 project key, viewport dimensions, route, and bounded runtime event metadata to
 `/api/runtime/heartbeat` and `/api/runtime/events`; it never receives auth,

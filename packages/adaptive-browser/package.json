@@ -1,5 +1,5 @@
 {
-  "name": "@adaptive/browser",
+  "name": "@provenly/browser",
   "version": "0.1.0",
   "description": "Browser and vanilla HTML/JS entry point for the Adaptive runtime.",
   "type": "module",
@@ -13,6 +13,6 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@adaptive/runtime": "0.1.0"
+    "@provenly/runtime": "0.1.0"
   }
 }

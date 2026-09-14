@@ -10,7 +10,7 @@
     "noEmit": true,
     "allowSyntheticDefaultImports": true,
     "paths": {
-      "@adaptive/runtime": ["../adaptive-runtime/src"]
+      "@provenly/runtime": ["../adaptive-runtime/src"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"]

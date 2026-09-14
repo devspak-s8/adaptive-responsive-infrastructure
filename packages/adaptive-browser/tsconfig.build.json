@@ -9,7 +9,7 @@
     "rootDir": "src",
     "allowImportingTsExtensions": false,
     "paths": {
-      "@adaptive/runtime": ["../adaptive-runtime/dist"]
+      "@provenly/runtime": ["../adaptive-runtime/dist"]
     }
   }
 }

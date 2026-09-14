@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
-import { startAdaptiveRuntime, type AdaptiveRuntimeOptions, type StopAdaptiveRuntime } from '@adaptive/runtime';
+import { startAdaptiveRuntime, type AdaptiveRuntimeOptions, type StopAdaptiveRuntime } from '@provenly/runtime';
 
 export interface AdaptiveProviderProps extends Omit<AdaptiveRuntimeOptions, 'projectId' | 'runtimeKey' | 'projectKey'> {
   projectId: string;
@@ -17,6 +17,6 @@ export const AdaptiveProvider = ({ children, ...runtimeOptions }: AdaptiveProvid
   return children;
 };
 
-export { init, startAdaptiveRuntime } from '@adaptive/runtime';
-export type { AdaptiveRuntimeOptions, LayoutAnomaly, LayoutTarget, StopAdaptiveRuntime } from '@adaptive/runtime';
+export { init, startAdaptiveRuntime } from '@provenly/runtime';
+export type { AdaptiveRuntimeOptions, LayoutAnomaly, LayoutTarget, StopAdaptiveRuntime } from '@provenly/runtime';
 export default AdaptiveProvider;

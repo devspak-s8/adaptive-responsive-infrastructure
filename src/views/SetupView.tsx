@@ -37,9 +37,9 @@ export const SetupView: React.FC<SetupViewProps> = ({ project }) => {
       description="Create a project before installing and connecting the runtime." /></div>;
   }
 
-  const installCommand = 'npm install @adaptive/react';
+  const installCommand = 'npm install @provenly/react';
   const integrationCode = runtime
-    ? `import { AdaptiveProvider } from '@adaptive/react';
+    ? `import { AdaptiveProvider } from '@provenly/react';
 
 export default function App({ children }) {
   return (

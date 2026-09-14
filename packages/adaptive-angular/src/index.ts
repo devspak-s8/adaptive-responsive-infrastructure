@@ -1,4 +1,4 @@
-import { startAdaptiveRuntime, type AdaptiveRuntimeOptions, type StopAdaptiveRuntime } from '@adaptive/runtime';
+import { startAdaptiveRuntime, type AdaptiveRuntimeOptions, type StopAdaptiveRuntime } from '@provenly/runtime';
 
 /**
  * Injectable-style service without a hard dependency on Angular decorators.
@@ -22,5 +22,5 @@ export class AdaptiveRuntimeService {
 
 export const initAdaptiveRuntime = (options: AdaptiveRuntimeOptions): StopAdaptiveRuntime => startAdaptiveRuntime(options);
 
-export { init, startAdaptiveRuntime } from '@adaptive/runtime';
-export type { AdaptiveRuntimeOptions, LayoutAnomaly, LayoutTarget, StopAdaptiveRuntime } from '@adaptive/runtime';
+export { init, startAdaptiveRuntime } from '@provenly/runtime';
+export type { AdaptiveRuntimeOptions, LayoutAnomaly, LayoutTarget, StopAdaptiveRuntime } from '@provenly/runtime';

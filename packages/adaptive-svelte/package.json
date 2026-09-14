@@ -1,5 +1,5 @@
 {
-  "name": "@adaptive/svelte",
+  "name": "@provenly/svelte",
   "version": "0.1.0",
   "description": "Svelte action for the framework-agnostic Adaptive runtime.",
   "type": "module",
@@ -13,7 +13,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@adaptive/runtime": "0.1.0"
+    "@provenly/runtime": "0.1.0"
   },
   "peerDependencies": {
     "svelte": ">=4"

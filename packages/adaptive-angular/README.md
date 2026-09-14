@@ -1,9 +1,9 @@
-# @adaptive/angular
+# @provenly/angular
 
-Angular-friendly lifecycle wrapper for `@adaptive/runtime`.
+Angular-friendly lifecycle wrapper for `@provenly/runtime`.
 
 ```ts
-import { AdaptiveRuntimeService } from '@adaptive/angular';
+import { AdaptiveRuntimeService } from '@provenly/angular';
 
 export class AppComponent {
   constructor(runtime: AdaptiveRuntimeService) {

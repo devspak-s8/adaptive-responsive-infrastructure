@@ -1,10 +1,10 @@
-# @adaptive/browser
+# @provenly/browser
 
 Browser/vanilla HTML and JavaScript entry point for the framework-agnostic
-`@adaptive/runtime` package.
+`@provenly/runtime` package.
 
 ```js
-import { init } from '@adaptive/browser';
+import { init } from '@provenly/browser';
 
 const stop = init({
   projectKey: 'adp_pk_...',

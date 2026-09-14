@@ -1,10 +1,10 @@
-# @adaptive/svelte
+# @provenly/svelte
 
-Thin Svelte/SvelteKit integration for the framework-agnostic `@adaptive/runtime`.
+Thin Svelte/SvelteKit integration for the framework-agnostic `@provenly/runtime`.
 
 ```svelte
 <script lang="ts">
-  import { adaptiveRuntime } from '@adaptive/svelte';
+  import { adaptiveRuntime } from '@provenly/svelte';
 
   const runtime = {
     projectId: 'project-id',
@@ -20,4 +20,4 @@ Thin Svelte/SvelteKit integration for the framework-agnostic `@adaptive/runtime`
 ```
 
 The action only manages mount/update/unmount lifecycle. The observer, AI decision
-layer, adaptation verification, and rollback remain in `@adaptive/runtime`.
+layer, adaptation verification, and rollback remain in `@provenly/runtime`.

@@ -179,7 +179,7 @@ export const DocsView: React.FC<DocsViewProps> = ({
                       <span>1. Pre-Deployment (CI/CD)</span>
                     </div>
                     <p className="text-xs text-[#0B0B0B]/65 leading-relaxed">
-                      Run <code className="font-mono bg-[#0B0B0B]/5 px-1 rounded">@adaptive/cli</code> in your GitHub Pull Requests. Synthetically spins up headless browsers at 320px–1920px and fails builds with visual diffs if elements clip.
+                      Run <code className="font-mono bg-[#0B0B0B]/5 px-1 rounded">@provenly/cli</code> in your GitHub Pull Requests. Synthetically spins up headless browsers at 320px–1920px and fails builds with visual diffs if elements clip.
                     </p>
                   </div>
 
@@ -219,10 +219,10 @@ export const DocsView: React.FC<DocsViewProps> = ({
                   </div>
 
                   <div className="relative group bg-[#0B0B0B] text-[#F5F3EE] rounded-lg p-4 font-mono text-xs overflow-x-auto">
-                    <code>{getInstallCmd('@adaptive/react @adaptive/cli')}</code>
+                    <code>{getInstallCmd('@provenly/react @provenly/cli')}</code>
                     <button
                       type="button"
-                      onClick={() => copyToClipboard(getInstallCmd('@adaptive/react @adaptive/cli'), 'quickstart')}
+                      onClick={() => copyToClipboard(getInstallCmd('@provenly/react @provenly/cli'), 'quickstart')}
                       className="absolute right-3 top-3 p-1.5 text-[#F5F3EE]/60 hover:text-white bg-[#F5F3EE]/10 rounded hover:bg-[#F5F3EE]/20 transition-colors"
                       title="Copy command"
                     >
@@ -254,7 +254,7 @@ export const DocsView: React.FC<DocsViewProps> = ({
                   </div>
                   <div className="relative bg-[#0B0B0B] text-[#F5F3EE] rounded-lg p-4 font-mono text-xs overflow-x-auto leading-relaxed">
                     <pre>{`// App.tsx or app/layout.tsx
-import { AdaptiveUI } from '@adaptive/react';
+import { AdaptiveUI } from '@provenly/react';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -273,7 +273,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 }`}</pre>
                     <button
                       type="button"
-                      onClick={() => copyToClipboard(`import { AdaptiveUI } from '@adaptive/react';`, 'code-wrap')}
+                      onClick={() => copyToClipboard(`import { AdaptiveUI } from '@provenly/react';`, 'code-wrap')}
                       className="absolute right-3 top-3 p-1.5 text-[#F5F3EE]/60 hover:text-white bg-[#F5F3EE]/10 rounded hover:bg-[#F5F3EE]/20 transition-colors"
                     >
                       {copiedKey === 'code-wrap' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -286,7 +286,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     2. Use the Viewport Hook for adaptive rendering
                   </div>
                   <div className="relative bg-[#0B0B0B] text-[#F5F3EE] rounded-lg p-4 font-mono text-xs overflow-x-auto leading-relaxed">
-                    <pre>{`import { useAdaptiveViewport } from '@adaptive/react';
+                    <pre>{`import { useAdaptiveViewport } from '@provenly/react';
 
 export function NavigationBar() {
   const { width, isColliding, activeBreakpoint } = useAdaptiveViewport();
@@ -321,7 +321,7 @@ export function NavigationBar() {
                     Developer CLI
                   </span>
                   <h2 className="text-xl sm:text-2xl font-semibold text-[#0B0B0B] mt-1">
-                    @adaptive/cli Collision Scanner
+                    @provenly/cli Collision Scanner
                   </h2>
                   <p className="text-sm text-[#0B0B0B]/70 mt-2 leading-relaxed">
                     Run local or CI layout checks directly from your terminal. Simulates DOM rendering against common breakpoints and outputs structured JSON or terminal tables.
@@ -333,10 +333,10 @@ export function NavigationBar() {
                     Run on localhost or preview URL:
                   </div>
                   <div className="relative bg-[#0B0B0B] text-[#F5F3EE] rounded-lg p-4 font-mono text-xs overflow-x-auto">
-                    <code>npx @adaptive/cli audit http://localhost:3000 --viewports=320,375,768,1024</code>
+                    <code>npx @provenly/cli audit http://localhost:3000 --viewports=320,375,768,1024</code>
                     <button
                       type="button"
-                      onClick={() => copyToClipboard('npx @adaptive/cli audit http://localhost:3000 --viewports=320,375,768,1024', 'cli-run')}
+                      onClick={() => copyToClipboard('npx @provenly/cli audit http://localhost:3000 --viewports=320,375,768,1024', 'cli-run')}
                       className="absolute right-3 top-3 p-1.5 text-[#F5F3EE]/60 hover:text-white bg-[#F5F3EE]/10 rounded hover:bg-[#F5F3EE]/20 transition-colors"
                     >
                       {copiedKey === 'cli-run' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
