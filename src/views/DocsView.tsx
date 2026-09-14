@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { PageType, UserSession } from '../types';
 import { LandingHeader } from '../components/landing/LandingHeader';
 import { LandingFooter } from '../components/landing/LandingFooter';
-import { ArrowRight, BookOpen, Check, ChevronRight, Code2, Copy, FileCode, Globe, Server, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowRight, Check, ChevronRight, Copy, ShieldCheck, Sparkles } from 'lucide-react';
 
 interface DocsViewProps {
   onNavigate: (page: PageType) => void;
   userSession: UserSession | null;
 }
 
-type DocSection = 'getting-started' | 'react-sdk' | 'integrations' | 'deployment' | 'intelligence' | 'api-reference';
+type DocSection = 'getting-started' | 'react-sdk' | 'integrations' | 'deployment' | 'intelligence';
 
 const codeClass = 'relative bg-[#0B0B0B] text-[#F5F3EE] rounded-lg p-4 font-mono text-xs overflow-x-auto leading-relaxed';
 
@@ -37,18 +37,6 @@ const snippets = {
     '',
     "init({ projectKey: 'adp_pk_...', apiBaseUrl: 'https://api.yourdomain.com', autoAdapt: true });",
   ].join('\n'),
-  options: [
-    'export interface AdaptiveRuntimeOptions {',
-    '  projectId?: string;',
-    '  runtimeKey?: string;',
-    '  projectKey?: string; // browser/vanilla alias',
-    '  apiBaseUrl: string;',
-    '  enabled?: boolean;',
-    '  autoAdapt?: boolean;',
-    '}',
-    '',
-    'type StopAdaptiveRuntime = () => void;',
-  ].join('\n'),
 };
 
 export const DocsView: React.FC<DocsViewProps> = ({ onNavigate, userSession }) => {
@@ -70,13 +58,12 @@ export const DocsView: React.FC<DocsViewProps> = ({ onNavigate, userSession }) =
         ? `bun add ${pkg}`
         : `npm install ${pkg}`;
 
-  const navItems: { id: DocSection; title: string; icon: React.ReactNode }[] = [
-    { id: 'getting-started', title: 'Getting Started', icon: <BookOpen className="w-3.5 h-3.5" /> },
-    { id: 'react-sdk', title: 'React / Next.js', icon: <Code2 className="w-3.5 h-3.5" /> },
-    { id: 'integrations', title: 'Other Frameworks', icon: <Globe className="w-3.5 h-3.5" /> },
-    { id: 'deployment', title: 'Production Deployment', icon: <Server className="w-3.5 h-3.5" /> },
-    { id: 'intelligence', title: 'Runtime Intelligence', icon: <Sparkles className="w-3.5 h-3.5" /> },
-    { id: 'api-reference', title: 'API & Types', icon: <FileCode className="w-3.5 h-3.5" /> },
+  const navItems: { id: DocSection; title: string }[] = [
+    { id: 'getting-started', title: 'Getting Started' },
+    { id: 'react-sdk', title: 'React / Next.js' },
+    { id: 'integrations', title: 'Other Frameworks' },
+    { id: 'deployment', title: 'Production Deployment' },
+    { id: 'intelligence', title: 'Runtime Intelligence' },
   ];
 
   const heading = (eyebrow: string, title: string, description: string) => (
@@ -109,7 +96,7 @@ export const DocsView: React.FC<DocsViewProps> = ({ onNavigate, userSession }) =
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           <aside className="lg:col-span-3 border border-[#0B0B0B]/15 rounded-lg p-4 bg-[#F5F3EE] sticky top-20">
             <div className="text-[11px] font-mono uppercase tracking-wider text-[#0B0B0B]/50 px-2 mb-3">Documentation Index</div>
-            <nav className="space-y-1 font-mono text-xs">{navItems.map((item) => <button key={item.id} type="button" onClick={() => setActiveSection(item.id)} className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-left ${activeSection === item.id ? 'bg-[#0B0B0B] text-[#F5F3EE] font-medium' : 'text-[#0B0B0B]/70 hover:text-[#0B0B0B] hover:bg-[#0B0B0B]/5'}`}>{item.icon}<span>{item.title}</span></button>)}</nav>
+            <nav className="space-y-1 font-mono text-xs">{navItems.map((item) => <button key={item.id} type="button" onClick={() => setActiveSection(item.id)} className={`w-full px-3 py-2 rounded-md text-left ${activeSection === item.id ? 'bg-[#0B0B0B] text-[#F5F3EE] font-medium' : 'text-[#0B0B0B]/70 hover:text-[#0B0B0B] hover:bg-[#0B0B0B]/5'}`}>{item.title}</button>)}</nav>
             <div className="mt-8 pt-4 border-t border-[#0B0B0B]/10 px-2"><div className="text-[10px] font-mono text-[#0B0B0B]/40 uppercase tracking-wider">Published packages</div><div className="mt-2 text-[11px] font-mono">@provenly/adaptive-*</div><div className="text-[11px] font-mono text-[#0B0B0B]/50">v0.1.0</div></div>
           </aside>
 
@@ -134,7 +121,6 @@ export const DocsView: React.FC<DocsViewProps> = ({ onNavigate, userSession }) =
             {activeSection === 'deployment' && <div className="space-y-6">
               {heading('Production', 'Connect your production site', 'The Adaptive API is the service that receives runtime heartbeats and layout events. Your project’s Setup & SDK page supplies the correct public API origin and runtime key.')}
               <ol className="list-decimal pl-5 space-y-2 text-sm text-[#0B0B0B]/75"><li>Create a project with the real production URL and environment.</li><li>Copy the project ID, public runtime key, and API origin from <b>Setup &amp; SDK</b>.</li><li>Install the adapter for your stack and add it once at the application root.</li><li>Deploy the website over HTTPS, then refresh Setup until the first heartbeat is visible.</li><li>Use the dashboard to review detected issues, adaptations, verification, and rollback events.</li></ol>
-              <div className="p-4 border border-[#0B0B0B]/15 rounded-md text-xs text-[#0B0B0B]/70"><b>For this console’s operators:</b> API hosting, Auth.js, Supabase, Bachs, and Gemini are configured in the deployment environment—not in customer code. Keep those server-only values out of the browser. The repository README and <code>server/README.md</code> contain the operator deployment checklist.</div>
               <div className="p-4 border border-emerald-700/20 bg-emerald-700/5 rounded-md text-xs text-[#0B0B0B]/70"><b>What you paste into your app:</b> only the project ID, the <code>adp_pk_...</code> public runtime key, and the API origin shown for that project.</div>
             </div>}
 
@@ -142,12 +128,6 @@ export const DocsView: React.FC<DocsViewProps> = ({ onNavigate, userSession }) =
               {heading('Engine', 'How detection and AI protection work', 'Deterministic checks identify meaningful layout signals; Gemini is the decision layer, not a replacement for safety validation.')}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm"><div className="border border-[#0B0B0B]/15 rounded-md p-4"><ShieldCheck className="w-4 h-4 mb-2" /><b>Observe and compare</b><p className="mt-1 text-[#0B0B0B]/60">The runtime tracks viewport, DOM geometry, CSS properties, route, mutations, overflow, wrapping, and collisions.</p></div><div className="border border-[#0B0B0B]/15 rounded-md p-4"><Sparkles className="w-4 h-4 mb-2" /><b>Analyze and adapt</b><p className="mt-1 text-[#0B0B0B]/60">Gemini receives bounded context and may choose one allowlisted strategy for the affected element.</p></div></div>
               <div className="border border-[#0B0B0B]/15 rounded-md p-4 text-sm"><b>Without a Gemini key</b><p className="mt-1 text-[#0B0B0B]/60">The runtime still reports issues and heartbeats. The API returns <code>AI_NOT_CONFIGURED</code> and does not pretend to apply an intelligent fix.</p></div><div className="border border-[#0B0B0B]/15 rounded-md p-4 text-sm"><b>Verification and rollback</b><p className="mt-1 text-[#0B0B0B]/60">Every adaptation is visitor-scoped. The runtime measures the result immediately and restores the previous style if the layout does not improve.</p></div>
-            </div>}
-
-            {activeSection === 'api-reference' && <div className="space-y-6">
-              {heading('Reference', 'Runtime options and event contract', 'Use the shared types when building an integration or browser entry point.')}
-              <div className={codeClass}><pre>{snippets.options}</pre>{copyButton(snippets.options, 'options')}</div>
-              <div className="space-y-2 text-sm text-[#0B0B0B]/70"><p><code>POST /api/runtime/heartbeat</code> records that a visitor loaded the runtime.</p><p><code>POST /api/runtime/events</code> stores navigation, layout issues, and verified or rolled-back adaptations.</p><p><code>POST /api/runtime/analyze</code> is server-only and uses the configured Gemini key.</p><p>Runtime requests authenticate with the public project key in <code>X-Adaptive-Runtime-Key</code>.</p></div>
             </div>}
 
             <div className="mt-12 p-6 bg-[#0B0B0B] text-[#F5F3EE] rounded-lg flex flex-col sm:flex-row items-center justify-between gap-4"><div><div className="font-mono text-sm font-semibold">Ready to connect a project?</div><div className="text-xs text-[#F5F3EE]/70 font-mono mt-0.5">Create a project, copy its runtime key, and deploy the SDK to your real website.</div></div><div className="flex items-center gap-3"><button type="button" onClick={() => onNavigate('pricing')} className="px-3.5 py-2 border border-[#F5F3EE]/30 rounded text-xs font-mono">View Plans</button><button type="button" onClick={() => onNavigate('login')} className="px-4 py-2 bg-[#F5F3EE] text-[#0B0B0B] rounded text-xs font-mono flex items-center gap-1.5">Connect GitHub <ArrowRight className="w-3.5 h-3.5" /></button></div></div>
