@@ -345,7 +345,10 @@ const targetLabel = (target: Record<string, unknown>): string => {
 
 const issueCategory = (value: unknown): 'overflow' | 'collision' | 'wrapping' | 'modal' | 'container' => {
   const category = runtimeValue(value, 40)?.toLowerCase();
-  if (category === 'collision' || category === 'wrapping' || category === 'modal' || category === 'container') return category;
+  if (category?.includes('collision')) return 'collision';
+  if (category?.includes('wrapping') || category?.includes('wrap')) return 'wrapping';
+  if (category?.includes('modal')) return 'modal';
+  if (category?.includes('container') || category?.includes('grid')) return 'container';
   return 'overflow';
 };
 
@@ -361,6 +364,8 @@ const upsertRuntimeIssue = async (projectId: string, payload: {
   issue: string;
   target: Record<string, unknown>;
   rootScrollWidth?: number | null;
+  severity?: string | null;
+  confidence?: number | null;
 }) => {
   const route = payload.path ?? '/';
   const element = targetLabel(payload.target);
@@ -374,7 +379,9 @@ const upsertRuntimeIssue = async (projectId: string, payload: {
   const styles = metadataObject(payload.target.styles);
   const currentCss = styles ? Object.entries(styles).map(([key, value]) => `${key}: ${String(value)}`).join('; ') : null;
   const rootScrollWidth = payload.rootScrollWidth ?? null;
-  const severity = issueSeverity(rootScrollWidth, payload.viewport.width);
+  const normalizedSeverity = payload.severity?.toLowerCase();
+  const severity = normalizedSeverity === 'high' ? 'High' : normalizedSeverity === 'low' ? 'Low' : normalizedSeverity === 'medium' ? 'Medium' : issueSeverity(rootScrollWidth, payload.viewport.width);
+  const titlePrefix = category === 'collision' ? 'Element collision' : category === 'wrapping' ? 'Unexpected text wrapping' : category === 'modal' ? 'Modal positioning issue' : category === 'container' ? 'Responsive container issue' : 'Horizontal overflow';
   const now = new Date();
   return prisma.responsiveIssueRecord.upsert({
     where: { projectId_fingerprint: { projectId, fingerprint } },
@@ -382,18 +389,19 @@ const upsertRuntimeIssue = async (projectId: string, payload: {
       projectId,
       fingerprint,
       sessionId: payload.sessionId ?? null,
-      title: `${category === 'overflow' ? 'Horizontal overflow' : 'Responsive layout issue'} on ${element}`,
+      title: `${titlePrefix} on ${element}`,
       route,
       element,
       category,
       severity,
+      confidence: payload.confidence,
       status: 'Open',
       viewportWidth: payload.viewport.width,
       viewportHeight: payload.viewport.height,
       availableWidth: metadataNumber(payload.target.clientWidth),
-      cause: rootScrollWidth && payload.viewport.width ? `Content is ${rootScrollWidth - payload.viewport.width}px wider than the viewport.` : 'Runtime layout boundary detected.',
+      cause: rootScrollWidth && payload.viewport.width ? `Content is ${rootScrollWidth - payload.viewport.width}px wider than the viewport.` : `${category} anomaly detected from layout relationships.`,
       currentCss,
-      recommendedFix: 'Apply a scoped, reversible responsive constraint to this element.',
+      recommendedFix: category === 'collision' ? 'Compact or wrap the colliding controls at this viewport.' : category === 'wrapping' ? 'Allow content to wrap without breaking the component boundary.' : 'Apply a scoped, reversible responsive constraint to this element.',
       occurrenceCount: 1,
       firstSeenAt: now,
       lastSeenAt: now,
@@ -402,6 +410,7 @@ const upsertRuntimeIssue = async (projectId: string, payload: {
     update: {
       sessionId: payload.sessionId ?? undefined,
       severity,
+      confidence: payload.confidence ?? undefined,
       status: 'Open',
       viewportWidth: payload.viewport.width,
       viewportHeight: payload.viewport.height,
@@ -417,19 +426,36 @@ const upsertRuntimeIssue = async (projectId: string, payload: {
 
 const persistLayoutIssue = async (projectId: string, sessionId: string, path: string | null, viewport: { width: number | null; height: number | null }, metadata: Record<string, unknown>) => {
   const issue = runtimeValue(metadata.issue, 80) ?? 'responsive-layout';
+  const graph = Array.isArray(metadata.graph) ? metadata.graph : [];
+  const graphById = new Map<string, Record<string, unknown>>();
+  for (const value of graph) {
+    const target = metadataObject(value);
+    const targetId = target ? runtimeValue(target.targetId, 100) : null;
+    if (target && targetId) graphById.set(targetId, target);
+  }
   const targets = Array.isArray(metadata.targets) ? metadata.targets : [];
+  const anomalies = Array.isArray(metadata.anomalies) ? metadata.anomalies : [];
   const rootScrollWidth = metadataNumber(metadata.rootScrollWidth);
   const records = [];
-  for (const value of targets.slice(0, 8)) {
-    const target = metadataObject(value);
+  const candidates = anomalies.length > 0
+    ? anomalies.flatMap((value) => {
+      const anomaly = metadataObject(value);
+      const targetIds = anomaly && Array.isArray(anomaly.targetIds) ? anomaly.targetIds : [];
+      return targetIds.map((targetId) => ({ target: graphById.get(String(targetId)), issue: runtimeValue(anomaly?.kind, 80) ?? issue, severity: runtimeValue(anomaly?.severity, 20), confidence: metadataNumber(anomaly?.confidence) }));
+    })
+    : targets.slice(0, 8).map((value) => ({ target: metadataObject(value), issue, severity: null, confidence: null }));
+  for (const candidate of candidates.slice(0, 24)) {
+    const target = candidate.target;
     if (!target) continue;
     records.push(await upsertRuntimeIssue(projectId, {
       sessionId,
       path,
       viewport,
-      issue,
+      issue: candidate.issue,
       target,
       rootScrollWidth,
+      severity: candidate.severity,
+      confidence: candidate.confidence,
     }));
   }
   return records;
@@ -457,7 +483,7 @@ const persistRuntimeAdaptation = async (projectId: string, sessionId: string, pa
       viewportWidth: viewport.width,
       viewportHeight: viewport.height,
       element: targetId,
-      strategy: runtimeValue(metadata.reason, 240) ?? `Set ${property} to ${value}`,
+      strategy: [runtimeValue(metadata.strategy, 80), runtimeValue(metadata.reason, 240)].filter(Boolean).join(' - ') || `Set ${property} to ${value}`,
       css: { targetId, property, value } as Prisma.InputJsonValue,
       verified: status === 'verified',
       rolledBack: status === 'rolled_back',
@@ -475,6 +501,22 @@ const allowedAdaptationProperties = new Set([
   'overflow-wrap',
   'overflow-x',
   'word-break',
+  'flex-wrap',
+  'grid-template-columns',
+]);
+
+const allowedStrategies = new Set([
+  'fluid-width',
+  'allow-wrap',
+  'compress-gap',
+  'stack-layout',
+  'compact-navigation',
+  'responsive-grid',
+  'contain-media',
+  'scroll-table',
+  'reposition-modal',
+  'scale-typography',
+  'collapse-secondary-actions',
 ]);
 
 const normalizeAdaptation = (value: unknown): { targetId: string; property: string; value: string; reason: string } | null => {
@@ -489,6 +531,36 @@ const normalizeAdaptation = (value: unknown): { targetId: string; property: stri
   if (!targetId || !property || !cssValue || !allowedAdaptationProperties.has(property)) return null;
   if (/[;{}]|!important/i.test(cssValue)) return null;
   return { targetId, property, value: cssValue, reason };
+};
+
+const normalizeStrategy = (value: unknown): { targetId: string; strategy: string; reason: string } | null => {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = (value as { strategy?: unknown }).strategy;
+  if (!candidate || typeof candidate !== 'object') return null;
+  const decision = candidate as Record<string, unknown>;
+  const targetId = runtimeValue(decision.targetId, 80);
+  const strategy = runtimeValue(decision.strategy, 80);
+  const reason = runtimeValue(decision.reason, 240) ?? 'Validated responsive adaptation strategy';
+  if (!targetId || !strategy || !allowedStrategies.has(strategy)) return null;
+  return { targetId, strategy, reason };
+};
+
+const deterministicStrategy = (issue: string, context: Record<string, unknown>): { strategy: string; targetId: string; reason: string } | null => {
+  const anomalies = Array.isArray(context.anomalies) ? context.anomalies : [];
+  const first = anomalies[0] && typeof anomalies[0] === 'object' ? anomalies[0] as Record<string, unknown> : null;
+  const targetIds = first && Array.isArray(first.targetIds) ? first.targetIds : [];
+  const firstTarget = Array.isArray(context.targets) && context.targets[0] && typeof context.targets[0] === 'object' ? context.targets[0] as Record<string, unknown> : null;
+  const targetId = typeof targetIds[0] === 'string' ? targetIds[0] : runtimeValue(firstTarget?.targetId, 100);
+  if (!targetId) return null;
+  const kind = runtimeValue(first?.kind, 80)?.toLowerCase() ?? issue.toLowerCase();
+  const strategy = kind.includes('collision') ? 'compact-navigation'
+    : kind.includes('wrapping') ? 'allow-wrap'
+      : kind.includes('grid') ? 'responsive-grid'
+        : kind.includes('media') ? 'contain-media'
+          : kind.includes('modal') ? 'reposition-modal'
+            : kind.includes('table') ? 'scroll-table'
+              : 'fluid-width';
+  return { strategy, targetId, reason: `Deterministic candidate for ${kind.replace(/_/g, ' ')}` };
 };
 
 const aiBaseUrl = () => (env('AI_API_BASE_URL') || 'https://api.openai.com/v1').replace(/\/+$/, '');
@@ -796,6 +868,7 @@ app.post('/api/runtime/analyze', runtimeCors, async (request, response) => {
 
   const contextViewport = runtimeViewport(context.viewport);
   const contextPath = runtimeValue(context.path, 512);
+  const fallbackStrategy = deterministicStrategy(issue, context);
   let persistedIssues: Awaited<ReturnType<typeof persistLayoutIssue>> = [];
   try {
     await touchRuntimeSession(project, sessionId);
@@ -817,7 +890,7 @@ app.post('/api/runtime/analyze', runtimeCors, async (request, response) => {
   });
 
   const apiKey = env('AI_API_KEY');
-  if (!apiKey) return response.json({ enabled: false, adaptation: null, reason: 'AI_NOT_CONFIGURED', issueId: persistedIssues[0]?.id ?? null, issueIds });
+  if (!apiKey) return response.json({ enabled: false, adaptation: null, strategy: fallbackStrategy, reason: 'AI_NOT_CONFIGURED', issueId: persistedIssues[0]?.id ?? null, issueIds });
 
   try {
     const subscription = await currentSubscription(project.ownerId);
@@ -837,7 +910,7 @@ app.post('/api/runtime/analyze', runtimeCors, async (request, response) => {
         messages: [
           {
             role: 'system',
-            content: 'You are a responsive-layout safety analyzer. Return JSON only. You may propose exactly one reversible CSS style patch for one SDK-tagged target. Use only these properties: box-sizing, flex-shrink, max-width, max-inline-size, min-width, min-inline-size, overflow-wrap, overflow-x, word-break. Never use selectors, scripts, !important, display, position, height, or arbitrary DOM changes. If uncertain, return {"adaptation":null}. The value must not contain semicolons or braces.',
+            content: 'You are a responsive-layout reasoner. Return JSON only. Prefer a validated strategy from this list: fluid-width, allow-wrap, compress-gap, stack-layout, compact-navigation, responsive-grid, contain-media, scroll-table, reposition-modal, scale-typography, collapse-secondary-actions. Return {"strategy":{"strategy":"...","targetId":"...","reason":"..."}} when a safe strategy is appropriate. You may return {"adaptation":{"targetId":"...","property":"...","value":"...","reason":"..."}} only when the strategy list cannot express the safe patch. Never use selectors, scripts, !important, display, position, height, or arbitrary DOM changes. If uncertain, return {"strategy":null,"adaptation":null}.',
           },
           {
             role: 'user',
@@ -849,12 +922,13 @@ app.post('/api/runtime/analyze', runtimeCors, async (request, response) => {
     const payload = await jsonBody(aiResponse);
     if (!aiResponse.ok) return response.status(502).json({ error: 'AI layout analysis is temporarily unavailable.', code: 'AI_UNAVAILABLE' });
     const adaptation = normalizeAdaptation(parseAIJson(aiResponseContent(payload)));
+    const strategy = normalizeStrategy(parseAIJson(aiResponseContent(payload))) ?? fallbackStrategy;
     await prisma.usagePeriod.upsert({
       where: { userId_periodStart: { userId: project.ownerId, periodStart } },
       create: { userId: project.ownerId, periodStart, periodEnd: endOfUsagePeriod(periodStart), codeRecommendationsGenerated: 1 },
       update: { codeRecommendationsGenerated: { increment: 1 } },
     });
-    return response.json({ enabled: true, adaptation, issueId: persistedIssues[0]?.id ?? null, issueIds });
+    return response.json({ enabled: true, adaptation, strategy, issueId: persistedIssues[0]?.id ?? null, issueIds });
   } catch (error) {
     const code = error instanceof Error && 'code' in error ? String((error as { code: string }).code) : '';
     if (code === 'RECOMMENDATION_LIMIT_REACHED') return response.status(429).json({ error: 'AI recommendation limit reached for this plan.', code });
@@ -912,6 +986,7 @@ app.get('/api/dashboard', async (request, response) => {
     viewport: issue.viewportWidth && issue.viewportHeight ? `${issue.viewportWidth} × ${issue.viewportHeight}` : 'Unknown viewport',
     element: issue.element ?? 'layout target',
     severity: issue.severity,
+    confidence: issue.confidence ?? undefined,
     status: issue.status,
     detected: issue.lastSeenAt.toISOString(),
     detectedWidth: issue.viewportWidth ? `${issue.viewportWidth}px` : undefined,

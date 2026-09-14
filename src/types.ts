@@ -49,6 +49,7 @@ export interface ResponsiveIssue {
   viewport: string;
   element: string;
   severity: IssueSeverity;
+  confidence?: number;
   status: IssueStatus;
   detected: string;
   detectedWidth?: string;

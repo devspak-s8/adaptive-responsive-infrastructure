@@ -17,6 +17,14 @@ type RuntimeEvent = {
   metadata?: Record<string, unknown>;
 };
 
+type LayoutAnomaly = {
+  kind: string;
+  severity: 'high' | 'medium' | 'low';
+  confidence: number;
+  targetIds: string[];
+  metrics: Record<string, number | string>;
+};
+
 type LayoutTarget = {
   targetId: string;
   tag: string;
@@ -25,6 +33,11 @@ type LayoutTarget = {
   rect: { left: number; top: number; width: number; height: number };
   clientWidth: number;
   scrollWidth: number;
+  role?: string;
+  parentTargetId?: string;
+  children?: number;
+  lineCount?: number;
+  visible?: boolean;
   styles: Record<string, string>;
 };
 
@@ -34,6 +47,13 @@ type Adaptation = {
   value: string;
   reason?: string;
   issueId?: string;
+  strategy?: string;
+};
+
+type StrategyDecision = {
+  strategy: string;
+  targetId: string;
+  reason?: string;
 };
 
 const allowedAdaptationProperties = new Set([
@@ -46,6 +66,22 @@ const allowedAdaptationProperties = new Set([
   'overflow-wrap',
   'overflow-x',
   'word-break',
+  'flex-wrap',
+  'grid-template-columns',
+]);
+
+const allowedStrategies = new Set([
+  'fluid-width',
+  'allow-wrap',
+  'compress-gap',
+  'stack-layout',
+  'compact-navigation',
+  'responsive-grid',
+  'contain-media',
+  'scroll-table',
+  'reposition-modal',
+  'scale-typography',
+  'collapse-secondary-actions',
 ]);
 
 const createSessionId = (): string => {
@@ -79,6 +115,39 @@ const safeAdaptation = (value: unknown): Adaptation | null => {
     value: patch.value.slice(0, 120),
     reason: typeof patch.reason === 'string' ? patch.reason.slice(0, 240) : undefined,
   };
+};
+
+const safeStrategy = (value: unknown): StrategyDecision | null => {
+  if (!value || typeof value !== 'object') return null;
+  const decision = value as Record<string, unknown>;
+  const strategy = typeof decision.strategy === 'string' ? decision.strategy : '';
+  const targetId = typeof decision.targetId === 'string' ? decision.targetId : '';
+  if (!allowedStrategies.has(strategy) || !targetId) return null;
+  return {
+    strategy,
+    targetId: targetId.slice(0, 80),
+    reason: typeof decision.reason === 'string' ? decision.reason.slice(0, 240) : undefined,
+  };
+};
+
+const strategyAdaptation = (decision: StrategyDecision, target: LayoutTarget): Adaptation | null => {
+  const media = new Set(['img', 'video', 'iframe', 'canvas', 'svg']);
+  const propertyByStrategy: Record<string, { property: string; value: string }> = {
+    'fluid-width': { property: 'max-inline-size', value: '100%' },
+    'allow-wrap': { property: 'overflow-wrap', value: 'anywhere' },
+    'compress-gap': { property: 'flex-wrap', value: 'wrap' },
+    'stack-layout': { property: 'flex-wrap', value: 'wrap' },
+    'compact-navigation': { property: 'flex-wrap', value: 'wrap' },
+    'responsive-grid': { property: 'grid-template-columns', value: 'minmax(0, 1fr)' },
+    'contain-media': { property: media.has(target.tag) ? 'max-width' : 'max-inline-size', value: '100%' },
+    'scroll-table': { property: 'overflow-x', value: 'auto' },
+    'reposition-modal': { property: 'max-inline-size', value: '100%' },
+    'scale-typography': { property: 'overflow-wrap', value: 'anywhere' },
+    'collapse-secondary-actions': { property: 'flex-wrap', value: 'wrap' },
+  };
+  const patch = propertyByStrategy[decision.strategy];
+  if (!patch || !allowedAdaptationProperties.has(patch.property)) return null;
+  return { ...patch, targetId: decision.targetId, reason: decision.reason, strategy: decision.strategy };
 };
 
 /**
@@ -161,6 +230,10 @@ export const AdaptiveProvider = ({
       }
       const rect = element.getBoundingClientRect();
       const computed = window.getComputedStyle(element);
+      const lineHeight = Number.parseFloat(computed.lineHeight);
+      const lineCount = Number.isFinite(lineHeight) && lineHeight > 0
+        ? Math.max(1, Math.round(element.getBoundingClientRect().height / lineHeight))
+        : undefined;
       return {
         targetId,
         tag: element.tagName.toLowerCase(),
@@ -169,6 +242,11 @@ export const AdaptiveProvider = ({
         rect: { left: Math.round(rect.left), top: Math.round(rect.top), width: Math.round(rect.width), height: Math.round(rect.height) },
         clientWidth: element.clientWidth,
         scrollWidth: element.scrollWidth,
+        role: (element.getAttribute('role') || element.tagName.toLowerCase()).slice(0, 40),
+        parentTargetId: element.parentElement?.getAttribute('data-adaptive-target') ?? undefined,
+        children: element.children.length,
+        lineCount,
+        visible: computed.visibility !== 'hidden' && computed.display !== 'none',
         styles: {
           display: computed.display,
           position: computed.position,
@@ -180,29 +258,72 @@ export const AdaptiveProvider = ({
           flexShrink: computed.flexShrink,
           whiteSpace: computed.whiteSpace,
           wordBreak: computed.wordBreak,
+          flexWrap: computed.flexWrap,
+          gridTemplateColumns: computed.gridTemplateColumns,
         },
       };
     };
 
-    const collectOverflowTargets = (): LayoutTarget[] => {
+    const collectLayoutGraph = (): { nodes: LayoutTarget[]; anomalies: LayoutAnomaly[] } => {
       const width = window.innerWidth;
-      const elements = Array.from(document.querySelectorAll<HTMLElement>('body *')).slice(0, 600);
-      const targets: LayoutTarget[] = [];
+      const elements = Array.from(document.querySelectorAll<HTMLElement>('body *')).slice(0, 260);
+      const records: Array<{ element: HTMLElement; node: LayoutTarget }> = [];
       for (const element of elements) {
-        if (element.hasAttribute('data-adaptive-ignore') || element.getAttribute('data-adaptive-target')) {
-          if (element.getAttribute('data-adaptive-target')) {
-            // Existing target ids are still eligible, but the element must be measurable.
-          } else continue;
-        }
+        if (element.hasAttribute('data-adaptive-ignore')) continue;
         const rect = element.getBoundingClientRect();
         if (rect.width <= 0 || rect.height <= 0) continue;
-        const overflowingChild = element.scrollWidth > element.clientWidth + 1;
-        const escapingViewport = rect.right > width + 1 && rect.left < width;
-        if (!overflowingChild && !escapingViewport) continue;
-        targets.push(targetSnapshot(element));
-        if (targets.length >= 8) break;
+        records.push({ element, node: targetSnapshot(element) });
       }
-      return targets;
+      const nodes = records.map((record) => record.node);
+      const anomalies: LayoutAnomaly[] = [];
+      const addAnomaly = (anomaly: LayoutAnomaly) => {
+        if (anomalies.length < 24) anomalies.push(anomaly);
+      };
+      for (const { element, node } of records) {
+        const rect = element.getBoundingClientRect();
+        const overflowingChild = node.scrollWidth > node.clientWidth + 1;
+        const escapingViewport = rect.right > width + 1 && rect.left < width;
+        if (overflowingChild || escapingViewport) {
+          addAnomaly({
+            kind: 'horizontal_overflow',
+            severity: node.scrollWidth > node.clientWidth * 1.2 ? 'high' : 'medium',
+            confidence: 0.98,
+            targetIds: [node.targetId],
+            metrics: { scrollWidth: node.scrollWidth, clientWidth: node.clientWidth, viewportWidth: width },
+          });
+        }
+        const textLength = element.textContent?.trim().length ?? 0;
+        const isTextLike = textLength > 0 && textLength <= 400 && node.children !== undefined && node.children <= 1 && !['svg', 'path'].includes(node.tag);
+        if (isTextLike && (node.lineCount ?? 0) >= 4 && node.styles.whiteSpace !== 'nowrap') {
+          addAnomaly({
+            kind: 'unexpected_wrapping',
+            severity: (node.lineCount ?? 0) >= 7 ? 'high' : 'medium',
+            confidence: 0.78,
+            targetIds: [node.targetId],
+            metrics: { lineCount: node.lineCount ?? 0, width: Math.round(rect.width) },
+          });
+        }
+      }
+      const visibleRecords = records.filter(({ node }) => node.visible && node.rect.width >= 4 && node.rect.height >= 4);
+      for (let index = 0; index < visibleRecords.length && anomalies.length < 24; index += 1) {
+        const first = visibleRecords[index];
+        for (let next = index + 1; next < visibleRecords.length && anomalies.length < 24; next += 1) {
+          const second = visibleRecords[next];
+          if (first.node.parentTargetId !== second.node.parentTargetId) continue;
+          if (first.element.contains(second.element) || second.element.contains(first.element)) continue;
+          const overlapX = Math.max(0, Math.min(first.node.rect.left + first.node.rect.width, second.node.rect.left + second.node.rect.width) - Math.max(first.node.rect.left, second.node.rect.left));
+          const overlapY = Math.max(0, Math.min(first.node.rect.top + first.node.rect.height, second.node.rect.top + second.node.rect.height) - Math.max(first.node.rect.top, second.node.rect.top));
+          if (overlapX < 4 || overlapY < 4) continue;
+          addAnomaly({
+            kind: 'element_collision',
+            severity: overlapX * overlapY > 900 ? 'high' : 'medium',
+            confidence: 0.72,
+            targetIds: [first.node.targetId, second.node.targetId],
+            metrics: { overlapWidth: Math.round(overlapX), overlapHeight: Math.round(overlapY) },
+          });
+        }
+      }
+      return { nodes: nodes.slice(0, 180), anomalies };
     };
 
     const applyAdaptation = async (adaptation: Adaptation, beforeScrollWidth: number) => {
@@ -214,7 +335,10 @@ export const AdaptiveProvider = ({
       await nextFrame();
       await nextFrame();
       const afterScrollWidth = Math.max(document.documentElement.scrollWidth, document.body?.scrollWidth ?? 0);
-      const improved = afterScrollWidth < beforeScrollWidth;
+      const targetOverflowResolved = target.scrollWidth <= target.clientWidth + 1;
+      const improved = adaptation.strategy
+        ? afterScrollWidth <= beforeScrollWidth && (targetOverflowResolved || adaptation.strategy !== 'fluid-width')
+        : afterScrollWidth < beforeScrollWidth;
       if (!improved) {
         if (previousValue) target.style.setProperty(adaptation.property, previousValue, previousPriority);
         else target.style.removeProperty(adaptation.property);
@@ -230,6 +354,7 @@ export const AdaptiveProvider = ({
           property: adaptation.property,
           value: adaptation.value,
           reason: adaptation.reason,
+          strategy: adaptation.strategy,
           beforeScrollWidth,
           afterScrollWidth,
         },
@@ -237,19 +362,24 @@ export const AdaptiveProvider = ({
       if (improved) scheduleChecks();
     };
 
-    const requestAdaptation = async (targets: LayoutTarget[], beforeScrollWidth: number) => {
+    const requestAdaptation = async (targets: LayoutTarget[], beforeScrollWidth: number, anomalies: LayoutAnomaly[], graph: LayoutTarget[]) => {
       if (!autoAdapt || targets.length === 0 || stopped) return;
       const payload = await request('/api/runtime/analyze', {
         sessionId,
-        issue: 'horizontal-overflow',
+        issue: 'responsive-anomaly',
         context: {
           path: pagePath(),
           viewport: viewport(),
           rootScrollWidth: beforeScrollWidth,
           targets,
+          anomalies,
+          graph,
         },
       });
-      const adaptation = safeAdaptation(payload?.adaptation);
+      const directAdaptation = safeAdaptation(payload?.adaptation);
+      const decision = safeStrategy(payload?.strategy);
+      const decisionTarget = decision ? targets.find((target) => target.targetId === decision.targetId) : null;
+      const adaptation = directAdaptation ?? (decision && decisionTarget ? strategyAdaptation(decision, decisionTarget) : null);
       if (adaptation && targets.some((target) => target.targetId === adaptation.targetId)) {
         const issueIds = payload?.issueIds && typeof payload.issueIds === 'object' ? payload.issueIds as Record<string, unknown> : {};
         const issueId = typeof issueIds[adaptation.targetId] === 'string' ? issueIds[adaptation.targetId] as string : undefined;
@@ -262,18 +392,22 @@ export const AdaptiveProvider = ({
       checkRunning = true;
       const dimensions = viewport();
       const rootScrollWidth = Math.max(document.documentElement.scrollWidth, document.body?.scrollWidth ?? 0);
-      const targets = rootScrollWidth > dimensions.width + 1 ? collectOverflowTargets() : [];
-      if (targets.length > 0) {
-        const signature = `${pagePath()}|${dimensions.width}x${dimensions.height}|${targets.map((target) => target.targetId).join(',')}`;
+      const graph = collectLayoutGraph();
+      const suspiciousTargets = Array.from(new Map(graph.anomalies.flatMap((anomaly) => anomaly.targetIds)
+        .map((targetId) => graph.nodes.find((node) => node.targetId === targetId))
+        .filter((target): target is LayoutTarget => Boolean(target))
+        .map((target) => [target.targetId, target] as const)).values());
+      if (graph.anomalies.length > 0) {
+        const signature = `${pagePath()}|${dimensions.width}x${dimensions.height}|${graph.anomalies.map((anomaly) => `${anomaly.kind}:${anomaly.targetIds.join(',')}`).join('|')}`;
         if (!seenIssues.has(signature)) {
           seenIssues.add(signature);
           enqueue({
             type: 'layout_issue',
             path: pagePath(),
             viewport: dimensions,
-            metadata: { issue: 'horizontal-overflow', rootScrollWidth, targets },
+            metadata: { issue: graph.anomalies[0]?.kind ?? 'responsive-anomaly', rootScrollWidth, targets: suspiciousTargets.slice(0, 8), graph: graph.nodes, anomalies: graph.anomalies },
           });
-          void requestAdaptation(targets, rootScrollWidth);
+          void requestAdaptation(suspiciousTargets.slice(0, 8), rootScrollWidth, graph.anomalies, graph.nodes);
         }
       }
       checkRunning = false;

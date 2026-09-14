@@ -149,6 +149,7 @@ model ResponsiveIssueRecord {
   element          String?
   category         String   @default("overflow")
   severity         String   @default("Medium")
+  confidence       Float?
   status           String   @default("Open")
   viewportWidth    Int?
   viewportHeight   Int?
