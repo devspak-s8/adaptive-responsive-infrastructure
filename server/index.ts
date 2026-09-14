@@ -314,11 +314,11 @@ const runtimeViewport = (value: unknown): { width: number | null; height: number
   return { width, height };
 };
 
-const runtimeMetadata = (value: unknown): Record<string, unknown> | null => {
+const runtimeMetadata = (value: unknown, maxLength = 4000): Record<string, unknown> | null => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   try {
     const serialized = JSON.stringify(value);
-    if (serialized.length > 4000) return null;
+    if (serialized.length > maxLength) return null;
     return JSON.parse(serialized) as Record<string, unknown>;
   } catch {
     return null;
@@ -510,6 +510,7 @@ const allowedStrategies = new Set([
   'allow-wrap',
   'compress-gap',
   'stack-layout',
+  'stack-actions',
   'compact-navigation',
   'responsive-grid',
   'contain-media',
@@ -875,7 +876,7 @@ app.post('/api/runtime/analyze', runtimeCors, async (request, response) => {
   if (!project) return;
   const sessionId = runtimeValue(request.body?.sessionId, 160);
   const issue = runtimeValue(request.body?.issue, 80);
-  const context = runtimeMetadata(request.body?.context);
+  const context = runtimeMetadata(request.body?.context, 120_000);
   if (!sessionId || !issue || !context) return response.status(400).json({ error: 'A runtime issue context is required.', code: 'ANALYSIS_INVALID' });
 
   const contextViewport = runtimeViewport(context.viewport);
@@ -925,7 +926,22 @@ app.post('/api/runtime/analyze', runtimeCors, async (request, response) => {
     const usage = await prisma.usagePeriod.findUnique({ where: { userId_periodStart: { userId: project.ownerId, periodStart } } });
     assertCanGenerateRecommendation(entitlements, usage?.codeRecommendationsGenerated ?? 0);
 
-    const contextJson = JSON.stringify({ issue, context }).slice(0, 14_000);
+    const {
+      visualSnapshot: currentVisualSnapshot,
+      previousVisualSnapshot,
+      ...structuredContext
+    } = context;
+    const contextJson = JSON.stringify({ issue, context: structuredContext }).slice(0, 20_000);
+    const visualMessages: Array<Record<string, unknown>> = [];
+    for (const image of [currentVisualSnapshot, previousVisualSnapshot]) {
+      if (typeof image === 'string' && image.startsWith('data:image/')) {
+        visualMessages.push({ type: 'image_url', image_url: { url: image, detail: 'low' } });
+      }
+    }
+    const userMessage = [
+      { type: 'text', text: `Analyze this runtime layout context, including any previous state, current state, graph relationships, and observation signals. Return the required decision JSON and a strategy only when the layout materially degraded. Context: ${contextJson}` },
+      ...visualMessages,
+    ];
     const aiResponse = await fetch(`${aiBaseUrl()}/chat/completions`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -936,11 +952,11 @@ app.post('/api/runtime/analyze', runtimeCors, async (request, response) => {
         messages: [
           {
             role: 'system',
-            content: 'You are a multimodal layout intelligence engine. Return JSON only. Compare the previous and current layout states and decide whether the interface materially degraded. Required fields: healthy (boolean), confidence (0..1), affected_region (string), reason (string), severity (low|medium|high), adaptation_needed (boolean). Only when adaptation_needed is true, choose one validated strategy from: fluid-width, allow-wrap, compress-gap, stack-layout, compact-navigation, responsive-grid, contain-media, scroll-table, reposition-modal, scale-typography, collapse-secondary-actions. Return it as {"strategy":{"strategy":"...","targetId":"...","reason":"..."}}. Never invent selectors, scripts, arbitrary JavaScript, or unvalidated CSS. A signal can be intentional or harmless; do not call it broken without evidence of material degradation.',
+            content: 'You are a multimodal layout intelligence engine. Return JSON only. Compare the previous and current layout states and decide whether the interface materially degraded. Required fields: healthy (boolean), confidence (0..1), affected_region (string), reason (string), severity (low|medium|high), adaptation_needed (boolean). Only when adaptation_needed is true, choose one validated strategy from: fluid-width, allow-wrap, compress-gap, stack-layout, stack-actions, compact-navigation, responsive-grid, contain-media, scroll-table, reposition-modal, scale-typography, collapse-secondary-actions. Return it as {"strategy":{"strategy":"...","targetId":"...","reason":"..."}}. Never invent selectors, scripts, arbitrary JavaScript, or unvalidated CSS. A signal can be intentional or harmless; do not call it broken without evidence of material degradation.',
           },
           {
             role: 'user',
-            content: `Analyze this runtime layout context, including any previous state, current state, graph relationships, and observation signals. Return the required decision JSON and a strategy only when the layout materially degraded. Context: ${contextJson}`,
+            content: userMessage,
           },
         ],
       }),

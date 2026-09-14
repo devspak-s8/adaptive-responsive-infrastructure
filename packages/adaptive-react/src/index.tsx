@@ -29,6 +29,7 @@ type LayoutState = {
   path: string;
   viewport: { width: number; height: number };
   nodes: LayoutTarget[];
+  visualSnapshot?: string;
 };
 
 type LayoutTarget = {
@@ -81,6 +82,7 @@ const allowedStrategies = new Set([
   'allow-wrap',
   'compress-gap',
   'stack-layout',
+  'stack-actions',
   'compact-navigation',
   'responsive-grid',
   'contain-media',
@@ -143,6 +145,7 @@ const strategyAdaptation = (decision: StrategyDecision, target: LayoutTarget): A
     'allow-wrap': { property: 'overflow-wrap', value: 'anywhere' },
     'compress-gap': { property: 'flex-wrap', value: 'wrap' },
     'stack-layout': { property: 'flex-wrap', value: 'wrap' },
+    'stack-actions': { property: 'flex-wrap', value: 'wrap' },
     'compact-navigation': { property: 'flex-wrap', value: 'wrap' },
     'responsive-grid': { property: 'grid-template-columns', value: 'minmax(0, 1fr)' },
     'contain-media': { property: media.has(target.tag) ? 'max-width' : 'max-inline-size', value: '100%' },
@@ -186,6 +189,32 @@ const compareLayoutStates = (previous: LayoutState | null, current: LayoutState)
     }
   }
   return changes;
+};
+
+const escapeXml = (value: string): string => value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[character] ?? character));
+
+/**
+ * Creates a compact, self-contained visual layout crop without shipping the
+ * host application's DOM or cross-origin assets. It gives the reasoner a
+ * visual representation of the affected region while keeping telemetry small.
+ */
+const createVisualSnapshot = (nodes: LayoutTarget[], anomalies: LayoutAnomaly[]): string | undefined => {
+  if (typeof window === 'undefined' || nodes.length === 0) return undefined;
+  const width = Math.max(1, Math.min(window.innerWidth, 1440));
+  const height = Math.max(1, Math.min(window.innerHeight, 900));
+  const affected = new Set(anomalies.flatMap((anomaly) => anomaly.targetIds));
+  const shapes = nodes.filter((node) => node.rect.left < width && node.rect.top < height).slice(0, 120).map((node) => {
+    const x = Math.max(0, Math.min(width, node.rect.left));
+    const y = Math.max(0, Math.min(height, node.rect.top));
+    const nodeWidth = Math.max(1, Math.min(width - x, node.rect.width));
+    const nodeHeight = Math.max(1, Math.min(height - y, node.rect.height));
+    const highlighted = affected.has(node.targetId);
+    const label = escapeXml((node.id ? `#${node.id}` : node.role ?? node.tag).slice(0, 32));
+    return `<g><rect x="${x}" y="${y}" width="${nodeWidth}" height="${nodeHeight}" fill="${highlighted ? '#fee2e2' : '#f8fafc'}" fill-opacity="${highlighted ? '0.72' : '0.38'}" stroke="${highlighted ? '#b91c1c' : '#64748b'}" stroke-opacity="0.5" stroke-width="1"/><text x="${x + 3}" y="${Math.min(height - 3, y + 12)}" font-family="monospace" font-size="10" fill="${highlighted ? '#991b1b' : '#334155'}">${label}</text></g>`;
+  }).join('');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="#ffffff"/>${shapes}</svg>`;
+  const encoded = encodeURIComponent(svg);
+  return encoded.length <= 32000 ? `data:image/svg+xml;charset=utf-8,${encoded}` : undefined;
 };
 
 /**
@@ -401,7 +430,7 @@ export const AdaptiveProvider = ({
       if (improved) scheduleChecks();
     };
 
-    const requestAdaptation = async (targets: LayoutTarget[], beforeScrollWidth: number, anomalies: LayoutAnomaly[], graph: LayoutTarget[], previousGraph: LayoutTarget[]) => {
+    const requestAdaptation = async (targets: LayoutTarget[], beforeScrollWidth: number, anomalies: LayoutAnomaly[], graph: LayoutTarget[], previousGraph: LayoutTarget[], visualSnapshot?: string, previousVisualSnapshot?: string) => {
       if (!autoAdapt || targets.length === 0 || stopped) return;
       const payload = await request('/api/runtime/analyze', {
         sessionId,
@@ -412,8 +441,10 @@ export const AdaptiveProvider = ({
           rootScrollWidth: beforeScrollWidth,
           targets,
           anomalies,
-          currentGraph: graph,
-          previousGraph,
+          currentGraph: graph.slice(0, 80),
+          previousGraph: previousGraph.slice(0, 80),
+          visualSnapshot,
+          previousVisualSnapshot,
         },
       });
       const directAdaptation = safeAdaptation(payload?.adaptation);
@@ -436,8 +467,11 @@ export const AdaptiveProvider = ({
       const currentState: LayoutState = { path: pagePath(), viewport: dimensions, nodes: graph.nodes };
       const stateChanges = compareLayoutStates(previousState, currentState);
       const previousGraph = previousState?.nodes ?? [];
+      const previousVisualSnapshot = previousState?.visualSnapshot;
       previousState = currentState;
       const signals = [...graph.anomalies, ...stateChanges].slice(0, 24);
+      const visualSnapshot = signals.length > 0 ? createVisualSnapshot(graph.nodes, signals) : undefined;
+      currentState.visualSnapshot = visualSnapshot;
       const suspiciousTargets = Array.from(new Map(signals.flatMap((anomaly) => anomaly.targetIds)
         .map((targetId) => graph.nodes.find((node) => node.targetId === targetId))
         .filter((target): target is LayoutTarget => Boolean(target))
@@ -452,7 +486,7 @@ export const AdaptiveProvider = ({
             viewport: dimensions,
             metadata: { issue: signals[0]?.kind ?? 'layout-state-change', rootScrollWidth, targets: suspiciousTargets.slice(0, 8), graph: graph.nodes, anomalies: signals },
           });
-          void requestAdaptation(suspiciousTargets.slice(0, 8), rootScrollWidth, signals, graph.nodes, previousGraph);
+          void requestAdaptation(suspiciousTargets.slice(0, 8), rootScrollWidth, signals, graph.nodes, previousGraph, visualSnapshot, previousVisualSnapshot);
         }
       }
       checkRunning = false;
