@@ -325,6 +325,138 @@ const runtimeMetadata = (value: unknown): Record<string, unknown> | null => {
   }
 };
 
+const metadataNumber = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : null;
+
+const metadataObject = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+
+const issueFingerprint = (projectId: string, route: string, category: string, element: string): string =>
+  crypto.createHash('sha256').update(`${projectId}|${route}|${category}|${element}`).digest('hex');
+
+const targetLabel = (target: Record<string, unknown>): string => {
+  const id = runtimeValue(target.id, 80);
+  if (id) return `#${id}`;
+  const classes = runtimeValue(target.classes, 120);
+  if (classes) return `.${classes.split(/\s+/).filter(Boolean).slice(0, 2).join('.')}`;
+  const tag = runtimeValue(target.tag, 40);
+  return tag ? `${tag}[data-adaptive-target]` : 'layout target';
+};
+
+const issueCategory = (value: unknown): 'overflow' | 'collision' | 'wrapping' | 'modal' | 'container' => {
+  const category = runtimeValue(value, 40)?.toLowerCase();
+  if (category === 'collision' || category === 'wrapping' || category === 'modal' || category === 'container') return category;
+  return 'overflow';
+};
+
+const issueSeverity = (rootScrollWidth: number | null, viewportWidth: number | null): 'High' | 'Medium' | 'Low' => {
+  if (rootScrollWidth && viewportWidth && rootScrollWidth > viewportWidth * 1.2) return 'High';
+  return 'Medium';
+};
+
+const upsertRuntimeIssue = async (projectId: string, payload: {
+  sessionId?: string | null;
+  path?: string | null;
+  viewport: { width: number | null; height: number | null };
+  issue: string;
+  target: Record<string, unknown>;
+  rootScrollWidth?: number | null;
+}) => {
+  const route = payload.path ?? '/';
+  const element = targetLabel(payload.target);
+  const category = issueCategory(payload.issue);
+  const fingerprint = issueFingerprint(projectId, route, category, runtimeValue(payload.target.targetId, 100) ?? element);
+  const styles = metadataObject(payload.target.styles);
+  const currentCss = styles ? Object.entries(styles).map(([key, value]) => `${key}: ${String(value)}`).join('; ') : null;
+  const rootScrollWidth = payload.rootScrollWidth ?? null;
+  const severity = issueSeverity(rootScrollWidth, payload.viewport.width);
+  const now = new Date();
+  return prisma.responsiveIssueRecord.upsert({
+    where: { projectId_fingerprint: { projectId, fingerprint } },
+    create: {
+      projectId,
+      fingerprint,
+      sessionId: payload.sessionId ?? null,
+      title: `${category === 'overflow' ? 'Horizontal overflow' : 'Responsive layout issue'} on ${element}`,
+      route,
+      element,
+      category,
+      severity,
+      status: 'Open',
+      viewportWidth: payload.viewport.width,
+      viewportHeight: payload.viewport.height,
+      availableWidth: metadataNumber(payload.target.clientWidth),
+      cause: rootScrollWidth && payload.viewport.width ? `Content is ${rootScrollWidth - payload.viewport.width}px wider than the viewport.` : 'Runtime layout boundary detected.',
+      currentCss,
+      recommendedFix: 'Apply a scoped, reversible responsive constraint to this element.',
+      occurrenceCount: 1,
+      firstSeenAt: now,
+      lastSeenAt: now,
+      metadata: payload.target as Prisma.InputJsonValue,
+    },
+    update: {
+      sessionId: payload.sessionId ?? undefined,
+      severity,
+      status: 'Open',
+      viewportWidth: payload.viewport.width,
+      viewportHeight: payload.viewport.height,
+      availableWidth: metadataNumber(payload.target.clientWidth),
+      cause: rootScrollWidth && payload.viewport.width ? `Content is ${rootScrollWidth - payload.viewport.width}px wider than the viewport.` : undefined,
+      currentCss: currentCss ?? undefined,
+      occurrenceCount: { increment: 1 },
+      lastSeenAt: now,
+      metadata: payload.target as Prisma.InputJsonValue,
+    },
+  });
+};
+
+const persistLayoutIssue = async (projectId: string, sessionId: string, path: string | null, viewport: { width: number | null; height: number | null }, metadata: Record<string, unknown>) => {
+  const issue = runtimeValue(metadata.issue, 80) ?? 'responsive-layout';
+  const targets = Array.isArray(metadata.targets) ? metadata.targets : [];
+  const rootScrollWidth = metadataNumber(metadata.rootScrollWidth);
+  const records = [];
+  for (const value of targets.slice(0, 8)) {
+    const target = metadataObject(value);
+    if (!target) continue;
+    records.push(await upsertRuntimeIssue(projectId, {
+      sessionId,
+      path,
+      viewport,
+      issue,
+      target,
+      rootScrollWidth,
+    }));
+  }
+  return records;
+};
+
+const persistRuntimeAdaptation = async (projectId: string, sessionId: string, path: string | null, viewport: { width: number | null; height: number | null }, metadata: Record<string, unknown>) => {
+  const targetId = runtimeValue(metadata.targetId, 100);
+  const property = runtimeValue(metadata.property, 60);
+  const value = runtimeValue(metadata.value, 160);
+  if (!targetId || !property || !value) return null;
+  const status = runtimeValue(metadata.status, 40);
+  const category = 'overflow';
+  const route = path ?? '/';
+  const fingerprint = issueFingerprint(projectId, route, category, targetId);
+  const issue = await prisma.responsiveIssueRecord.findUnique({ where: { projectId_fingerprint: { projectId, fingerprint } } });
+  return prisma.runtimeAdaptation.create({
+    data: {
+      projectId,
+      issueId: issue?.id,
+      sessionId,
+      route,
+      viewportWidth: viewport.width,
+      viewportHeight: viewport.height,
+      element: targetId,
+      strategy: runtimeValue(metadata.reason, 240) ?? `Set ${property} to ${value}`,
+      css: { targetId, property, value } as Prisma.InputJsonValue,
+      verified: status === 'verified',
+      rolledBack: status === 'rolled_back',
+    },
+  });
+};
+
 const allowedAdaptationProperties = new Set([
   'box-sizing',
   'flex-shrink',
@@ -591,6 +723,18 @@ app.post('/api/runtime/heartbeat', runtimeCors, async (request, response) => {
   try {
     await touchRuntimeSession(project, sessionId);
     const now = new Date();
+    const heartbeatViewport = runtimeViewport(request.body?.viewport);
+    await prisma.runtimeEvent.create({
+      data: {
+        projectId: project.id,
+        sessionId,
+        type: 'heartbeat',
+        path: runtimeValue(request.body?.path, 512),
+        viewportWidth: heartbeatViewport.width,
+        viewportHeight: heartbeatViewport.height,
+        metadata: { source: 'heartbeat' },
+      },
+    });
     await prisma.project.update({ where: { id: project.id }, data: { lastHeartbeatAt: now } });
     return response.json({ accepted: true, projectId: project.id, receivedAt: now.toISOString() });
   } catch (error) {
@@ -623,6 +767,8 @@ app.post('/api/runtime/events', runtimeCors, async (request, response) => {
         ...(metadata ? { metadata: metadata as Prisma.InputJsonValue } : {}),
       },
     });
+    if (metadata && type === 'layout_issue') await persistLayoutIssue(project.id, sessionId, runtimeValue(request.body?.path, 512), viewport, metadata);
+    if (metadata && type === 'adaptation') await persistRuntimeAdaptation(project.id, sessionId, runtimeValue(request.body?.path, 512), viewport, metadata);
     await prisma.project.update({ where: { id: project.id }, data: { lastHeartbeatAt: new Date() } });
     return response.status(202).json({ accepted: true });
   } catch (error) {
@@ -640,8 +786,22 @@ app.post('/api/runtime/analyze', runtimeCors, async (request, response) => {
   const context = runtimeMetadata(request.body?.context);
   if (!sessionId || !issue || !context) return response.status(400).json({ error: 'A runtime issue context is required.', code: 'ANALYSIS_INVALID' });
 
+  const contextViewport = runtimeViewport(context.viewport);
+  const contextPath = runtimeValue(context.path, 512);
+  let persistedIssues: Awaited<ReturnType<typeof persistLayoutIssue>> = [];
+  try {
+    await touchRuntimeSession(project, sessionId);
+    persistedIssues = await persistLayoutIssue(project.id, sessionId, contextPath, contextViewport, { ...context, issue });
+  } catch (error) {
+    const code = error instanceof Error && 'code' in error ? String((error as { code: string }).code) : '';
+    if (code === 'SESSION_LIMIT_REACHED') return response.status(429).json({ error: 'Monthly monitored sessions are used up. Upgrade your plan or wait for the next period.', code });
+    // Telemetry persistence should not prevent a visitor from receiving a safe
+    // adaptation when the analyzer is available.
+    console.warn('[runtime warning] issue persistence unavailable');
+  }
+
   const apiKey = env('AI_API_KEY');
-  if (!apiKey) return response.json({ enabled: false, adaptation: null, reason: 'AI_NOT_CONFIGURED' });
+  if (!apiKey) return response.json({ enabled: false, adaptation: null, reason: 'AI_NOT_CONFIGURED', issueId: persistedIssues[0]?.id ?? null });
 
   try {
     const subscription = await currentSubscription(project.ownerId);
@@ -678,7 +838,7 @@ app.post('/api/runtime/analyze', runtimeCors, async (request, response) => {
       create: { userId: project.ownerId, periodStart, periodEnd: endOfUsagePeriod(periodStart), codeRecommendationsGenerated: 1 },
       update: { codeRecommendationsGenerated: { increment: 1 } },
     });
-    return response.json({ enabled: true, adaptation });
+    return response.json({ enabled: true, adaptation, issueId: persistedIssues[0]?.id ?? null });
   } catch (error) {
     const code = error instanceof Error && 'code' in error ? String((error as { code: string }).code) : '';
     if (code === 'RECOMMENDATION_LIMIT_REACHED') return response.status(429).json({ error: 'AI recommendation limit reached for this plan.', code });
@@ -692,13 +852,97 @@ app.get('/api/dashboard', async (request, response) => {
   const projects = await prisma.project.findMany({ where: { ownerId: user.id }, orderBy: { createdAt: 'asc' } });
   const selectedId = typeof request.query.projectId === 'string' ? request.query.projectId : projects[0]?.id;
   const selected = projects.find((project: { id: string }) => project.id === selectedId) ?? projects[0];
+  const runtimeEvents = selected ? await prisma.runtimeEvent.findMany({
+    where: { projectId: selected.id, type: { in: ['heartbeat', 'layout_issue', 'adaptation', 'navigation'] } },
+    orderBy: { createdAt: 'desc' },
+    take: 250,
+  }) : [];
+  const issueRecords = selected ? await prisma.responsiveIssueRecord.findMany({
+    where: { projectId: selected.id },
+    orderBy: { lastSeenAt: 'desc' },
+    take: 200,
+  }) : [];
+  const adaptationRecords = selected ? await prisma.runtimeAdaptation.findMany({
+    where: { projectId: selected.id },
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+  }) : [];
+  const viewportRecords = new Map<string, typeof runtimeEvents[number]>();
+  for (const event of runtimeEvents) {
+    if (event.viewportWidth === null || event.viewportHeight === null) continue;
+    const key = `${event.viewportWidth}x${event.viewportHeight}`;
+    if (!viewportRecords.has(key)) viewportRecords.set(key, event);
+  }
+  const viewportResponse = Array.from(viewportRecords.values()).map((event) => {
+    const width = event.viewportWidth ?? 0;
+    const height = event.viewportHeight ?? 0;
+    const issueCount = issueRecords.filter((issue) => issue.viewportWidth === width && issue.viewportHeight === height && issue.status === 'Open').length;
+    return {
+      id: `${selected?.id ?? 'project'}-${width}x${height}`,
+      name: `${width} × ${height}`,
+      dimensions: `${width} × ${height}`,
+      width,
+      height,
+      deviceType: width < 600 ? 'mobile' : width < 1024 ? 'tablet' : 'desktop',
+      status: issueCount > 0 ? 'warning' : 'healthy',
+      issuesCount: issueCount,
+      lastChecked: event.createdAt.toISOString(),
+    };
+  });
+  const issueResponse = issueRecords.map((issue) => ({
+    id: issue.id,
+    title: issue.title,
+    route: issue.route ?? '/',
+    viewport: issue.viewportWidth && issue.viewportHeight ? `${issue.viewportWidth} × ${issue.viewportHeight}` : 'Unknown viewport',
+    element: issue.element ?? 'layout target',
+    severity: issue.severity,
+    status: issue.status,
+    detected: issue.lastSeenAt.toISOString(),
+    detectedWidth: issue.viewportWidth ? `${issue.viewportWidth}px` : undefined,
+    availableWidth: issue.availableWidth ? `${issue.availableWidth}px` : undefined,
+    cause: issue.cause ?? undefined,
+    currentCss: issue.currentCss ?? undefined,
+    recommendedFix: issue.recommendedFix ?? undefined,
+    category: issue.category,
+  }));
+  const autofixResponse = adaptationRecords.map((adaptation) => ({
+    id: adaptation.id,
+    fix: adaptation.strategy,
+    route: adaptation.route ?? '/',
+    viewport: adaptation.viewportWidth && adaptation.viewportHeight ? `${adaptation.viewportWidth} × ${adaptation.viewportHeight}` : 'Unknown viewport',
+    result: adaptation.rolledBack ? 'Rolled Back' : adaptation.verified ? 'Verified' : 'Monitoring',
+    time: adaptation.createdAt.toISOString(),
+    diffSummary: adaptation.css && typeof adaptation.css === 'object' ? JSON.stringify(adaptation.css) : undefined,
+  }));
+  const activityResponse = [
+    ...issueRecords.map((issue) => ({
+      id: `issue-${issue.id}`,
+      type: 'issue',
+      title: issue.title,
+      description: `${issue.occurrenceCount} runtime detection${issue.occurrenceCount === 1 ? '' : 's'} recorded`,
+      route: issue.route ?? undefined,
+      viewport: issue.viewportWidth && issue.viewportHeight ? `${issue.viewportWidth} × ${issue.viewportHeight}` : undefined,
+      time: issue.lastSeenAt.toISOString(),
+      metadata: issue.status,
+    })),
+    ...adaptationRecords.map((adaptation) => ({
+      id: `adaptation-${adaptation.id}`,
+      type: adaptation.rolledBack ? 'rollback' : 'autofix',
+      title: adaptation.rolledBack ? 'Runtime adaptation rolled back' : 'Runtime adaptation applied',
+      description: adaptation.strategy,
+      route: adaptation.route ?? undefined,
+      viewport: adaptation.viewportWidth && adaptation.viewportHeight ? `${adaptation.viewportWidth} × ${adaptation.viewportHeight}` : undefined,
+      time: adaptation.createdAt.toISOString(),
+      metadata: adaptation.verified ? 'Verified' : 'Monitoring',
+    })),
+  ].sort((a, b) => b.time.localeCompare(a.time)).slice(0, 100);
   return response.json({
     projects: projects.map(projectResponse),
-    viewports: [],
-    issues: [],
-    autofixes: [],
+    viewports: viewportResponse,
+    issues: issueResponse,
+    autofixes: autofixResponse,
     deployments: [],
-    activities: [],
+    activities: activityResponse,
     settings: selected ? {
       projectName: selected.name,
       productionUrl: selected.productionUrl,
@@ -813,8 +1057,26 @@ app.delete('/api/projects/:id', async (request, response) => {
 app.patch('/api/issues/:id', async (request, response) => {
   const user = await requireUser(request, response);
   if (!user) return;
-  // Issue persistence is intentionally not fabricated until the telemetry schema is added.
-  return response.status(501).json({ error: 'Issue persistence is not configured yet.', code: 'ISSUES_NOT_CONFIGURED' });
+  const issue = await prisma.responsiveIssueRecord.findFirst({
+    where: { id: request.params.id, project: { ownerId: user.id } },
+  });
+  if (!issue) return response.status(404).json({ error: 'Issue not found.' });
+  const status = request.body?.status;
+  if (status !== 'Open' && status !== 'Autofixed' && status !== 'Resolved' && status !== 'Ignored') {
+    return response.status(400).json({ error: 'A valid issue status is required.', code: 'ISSUE_STATUS_INVALID' });
+  }
+  const updated = await prisma.responsiveIssueRecord.update({ where: { id: issue.id }, data: { status } });
+  return response.json({
+    id: updated.id,
+    title: updated.title,
+    route: updated.route ?? '/',
+    viewport: updated.viewportWidth && updated.viewportHeight ? `${updated.viewportWidth} × ${updated.viewportHeight}` : 'Unknown viewport',
+    element: updated.element ?? 'layout target',
+    severity: updated.severity,
+    status: updated.status,
+    detected: updated.lastSeenAt.toISOString(),
+    category: updated.category,
+  });
 });
 
 app.get('/api/billing/status', async (request, response) => {

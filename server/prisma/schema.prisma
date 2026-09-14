@@ -110,6 +110,8 @@ model Project {
   owner          User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   runtimeSessions RuntimeSession[]
   runtimeEvents   RuntimeEvent[]
+  responsiveIssues ResponsiveIssueRecord[]
+  runtimeAdaptations RuntimeAdaptation[]
   @@index([ownerId, createdAt])
 }
 
@@ -135,6 +137,53 @@ model RuntimeEvent {
   createdAt      DateTime @default(now())
   project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   @@index([projectId, createdAt])
+}
+
+model ResponsiveIssueRecord {
+  id               String   @id @default(cuid())
+  projectId        String
+  fingerprint      String
+  sessionId        String?
+  title            String
+  route            String?
+  element          String?
+  category         String   @default("overflow")
+  severity         String   @default("Medium")
+  status           String   @default("Open")
+  viewportWidth    Int?
+  viewportHeight   Int?
+  availableWidth   Int?
+  cause            String?
+  currentCss       String?
+  recommendedFix   String?
+  occurrenceCount  Int      @default(1)
+  firstSeenAt      DateTime @default(now())
+  lastSeenAt       DateTime @updatedAt
+  metadata         Json?
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  adaptations      RuntimeAdaptation[]
+  @@unique([projectId, fingerprint])
+  @@index([projectId, status, lastSeenAt])
+}
+
+model RuntimeAdaptation {
+  id             String  @id @default(cuid())
+  projectId      String
+  issueId        String?
+  sessionId      String?
+  route          String?
+  viewportWidth  Int?
+  viewportHeight Int?
+  element        String?
+  strategy       String
+  css            Json?
+  verified       Boolean @default(false)
+  rolledBack     Boolean @default(false)
+  createdAt      DateTime @default(now())
+  project        Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  issue          ResponsiveIssueRecord? @relation(fields: [issueId], references: [id], onDelete: SetNull)
+  @@index([projectId, createdAt])
+  @@index([issueId, createdAt])
 }
 
 model UsagePeriod {

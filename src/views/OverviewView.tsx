@@ -1,6 +1,6 @@
 import React from 'react';
 import { ExternalLink, Settings } from 'lucide-react';
-import { PageType, ProjectItem, ResponsiveIssue, ViewportItem } from '../types';
+import { AutofixRecord, PageType, ProjectItem, ResponsiveIssue, ViewportItem } from '../types';
 import { EmptyState } from '../components/common/EmptyState';
 import { CreateProjectForm } from '../components/CreateProjectForm';
 
@@ -9,13 +9,14 @@ interface OverviewViewProps {
   viewports: ViewportItem[];
   issues: ResponsiveIssue[];
   autofixCount: number;
+  autofixes: AutofixRecord[];
   onNavigate: (page: PageType) => void;
   onCreateProject: (name: string, environment: ProjectItem['environment'], url: string) => Promise<boolean | string> | boolean | string;
   onSelectIssue: (issue: ResponsiveIssue) => void;
   onSelectViewportInLab: (viewport: string) => void;
 }
 
-export const OverviewView: React.FC<OverviewViewProps> = ({ project, viewports, issues, autofixCount, onNavigate, onCreateProject }) => {
+export const OverviewView: React.FC<OverviewViewProps> = ({ project, viewports, issues, autofixCount, autofixes, onNavigate, onCreateProject, onSelectIssue }) => {
   if (!project) {
     return <div className="max-w-6xl mx-auto pb-16 pt-2 space-y-5">
       <EmptyState title="No projects yet"
@@ -37,7 +38,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ project, viewports, 
   const metric = (label: string, value: React.ReactNode) => (
     <div className="p-4 sm:p-5"><div className="text-xs font-mono uppercase tracking-wider text-[#0B0B0B]/50">{label}</div>
       <div className="text-2xl sm:text-3xl font-mono font-semibold mt-1.5">{value}</div>
-      <div className="text-[11px] font-mono text-[#0B0B0B]/50 mt-1">No data yet</div></div>
+      <div className="text-[11px] font-mono text-[#0B0B0B]/50 mt-1">{project?.runtimeConnected ? 'Live runtime data' : 'Waiting for runtime'}</div></div>
   );
 
   return <div className="space-y-8 sm:space-y-10 max-w-6xl mx-auto pb-16">
@@ -57,9 +58,14 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ project, viewports, 
       {metric('Issues', issues.length > 0 ? openIssues.length : '—')}
       {metric('Autofixes', autofixCount > 0 ? autofixCount : '—')}
     </section>
-    <section className="space-y-4"><div><h2 className="text-lg font-semibold">Responsive Health</h2><p className="text-xs text-[#0B0B0B]/60 mt-0.5">Continuous synthetic layout verification matrix</p></div>
-      <EmptyState title="No viewport data yet" description="Real viewport dimensions observed from your application will appear here." /></section>
-    <section className="space-y-4"><div><h2 className="text-lg font-semibold">Recent Issues</h2><p className="text-xs text-[#0B0B0B]/60 mt-0.5">Active layout boundary and wrapping alerts</p></div>
-      <EmptyState title="No responsive issues yet" description="Issues detected from real application traffic will appear here." /></section>
+    <section className="space-y-4"><div><h2 className="text-lg font-semibold">Responsive Health</h2><p className="text-xs text-[#0B0B0B]/60 mt-0.5">Viewport dimensions observed from real application traffic</p></div>
+      {viewports.length === 0 ? <EmptyState title="No viewport data yet" description="Open the production URL with the Adaptive runtime installed to start collecting dimensions." /> : <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">{viewports.map((viewport) => <button type="button" key={viewport.id} onClick={() => onNavigate('viewport-lab')} className="text-left border border-[#0B0B0B]/10 rounded-md bg-[#F5F3EE] p-4 hover:border-[#0B0B0B]/30 transition-colors"><div className="flex items-center justify-between gap-3"><span className="font-mono text-sm font-semibold">{viewport.dimensions}</span><span className="text-[10px] font-mono uppercase tracking-wider text-[#0B0B0B]/50">{viewport.deviceType}</span></div><div className="mt-3 text-xs text-[#0B0B0B]/60">{viewport.issuesCount ? `${viewport.issuesCount} open issue${viewport.issuesCount === 1 ? '' : 's'}` : 'No open issues'}</div><div className="mt-1 text-[11px] font-mono text-[#0B0B0B]/45">{new Date(viewport.lastChecked).toLocaleString()}</div></button>)}</div>}
+    </section>
+    <section className="space-y-4"><div className="flex items-end justify-between gap-3"><div><h2 className="text-lg font-semibold">Recent Issues</h2><p className="text-xs text-[#0B0B0B]/60 mt-0.5">Active layout boundary and wrapping alerts from visitors</p></div>{issues.length > 0 && <button type="button" onClick={() => onNavigate('issues')} className="text-xs font-mono underline underline-offset-4">View all</button>}</div>
+      {issues.length === 0 ? <EmptyState title="No responsive issues yet" description="Issues detected from real application traffic will appear here." /> : <div className="border border-[#0B0B0B]/10 rounded-md divide-y divide-[#0B0B0B]/10 bg-[#F5F3EE]">{issues.slice(0, 5).map((issue) => <button type="button" key={issue.id} onClick={() => onSelectIssue(issue)} className="w-full text-left p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 hover:bg-[#0B0B0B]/[0.03]"><div><div className="font-medium text-sm">{issue.title}</div><div className="text-xs font-mono text-[#0B0B0B]/55 mt-1">{issue.route} · {issue.viewport} · {issue.element}</div></div><span className="text-[10px] font-mono uppercase tracking-wider text-[#0B0B0B]/55">{issue.status}</span></button>)}</div>}
+    </section>
+    <section className="space-y-4"><div className="flex items-end justify-between gap-3"><div><h2 className="text-lg font-semibold">Runtime adaptations</h2><p className="text-xs text-[#0B0B0B]/60 mt-0.5">Scoped fixes verified in visitor sessions</p></div>{autofixes.length > 0 && <button type="button" onClick={() => onNavigate('autofix')} className="text-xs font-mono underline underline-offset-4">Open Autofix</button>}</div>
+      {autofixes.length === 0 ? <EmptyState title="No runtime adaptations yet" description="Verified adaptations will appear here after the runtime safely resolves an issue." /> : <div className="border border-[#0B0B0B]/10 rounded-md divide-y divide-[#0B0B0B]/10 bg-[#F5F3EE]">{autofixes.slice(0, 4).map((fix) => <div key={fix.id} className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"><div><div className="font-medium text-sm">{fix.fix}</div><div className="text-xs font-mono text-[#0B0B0B]/55 mt-1">{fix.route} · {fix.viewport}</div></div><span className="text-[10px] font-mono uppercase tracking-wider text-[#0B0B0B]/55">{fix.result}</span></div>)}</div>}
+    </section>
   </div>;
 };

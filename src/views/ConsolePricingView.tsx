@@ -27,6 +27,17 @@ const planDescriptions: Record<PlanId, string> = {
 };
 const usagePercent = (used: number, limit: number): number => Math.min(100, Math.round((used / Math.max(limit, 1)) * 100));
 const limitLabel = (limit: number): string => limit === Infinity ? 'Unlimited' : limit.toLocaleString();
+const planDetails: Array<{ label: string; values: Record<PlanId, string> }> = [
+  { label: 'Monthly monitored sessions', values: { free: '2,500', developer: '25,000', autopilot: '100,000' } },
+  { label: 'Real viewport detection', values: { free: 'Included', developer: 'Included', autopilot: 'Included' } },
+  { label: 'Responsive issue detection', values: { free: 'Included', developer: 'Included', autopilot: 'Included' } },
+  { label: 'Runtime adaptation', values: { free: 'Basic', developer: 'Standard', autopilot: 'Advanced' } },
+  { label: 'Code recommendations', values: { free: '5 / month', developer: 'Unlimited*', autopilot: 'Unlimited*' } },
+  { label: 'Deployment regression monitoring', values: { free: 'Upgrade required', developer: 'Included', autopilot: 'Included' } },
+  { label: 'Automatic fixing', values: { free: 'Upgrade required', developer: 'Upgrade required', autopilot: 'Included' } },
+  { label: 'Verification and rollback', values: { free: 'Upgrade required', developer: 'Upgrade required', autopilot: 'Included' } },
+  { label: 'Issue and fix history', values: { free: '7 days', developer: '30 days', autopilot: '90 days' } },
+];
 
 export const ConsolePricingView: React.FC<ConsolePricingViewProps> = ({ currentPlan, onNavigate }) => {
   const [status, setStatus] = useState<BillingStatus | null>(null);
@@ -160,6 +171,11 @@ export const ConsolePricingView: React.FC<ConsolePricingViewProps> = ({ currentP
             </article>;
           })}
         </div>
+      </section>
+
+      <section className="space-y-4">
+        <div><p className="text-[11px] font-mono uppercase tracking-[0.16em] text-[#0B0B0B]/45">Plan details</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">Everything included at a glance</h2><p className="mt-1 text-sm text-[#0B0B0B]/60">Settings that require a paid tier are marked clearly before you enable them.</p></div>
+        <div className="overflow-x-auto rounded-md border border-[#0B0B0B]/10 bg-[#F5F3EE]"><table className="w-full min-w-[680px] text-left text-xs"><thead><tr className="border-b border-[#0B0B0B]/10 text-[10px] font-mono uppercase tracking-wider text-[#0B0B0B]/45"><th className="px-4 py-3 font-normal">Capability</th>{planOrder.map((planId) => <th key={planId} className="px-4 py-3 font-normal">{getPlanLimits(planId).name}</th>)}</tr></thead><tbody className="divide-y divide-[#0B0B0B]/10">{planDetails.map((detail) => <tr key={detail.label}><td className="px-4 py-3.5 font-medium">{detail.label}</td>{planOrder.map((planId) => <td key={planId} className={`px-4 py-3.5 font-mono ${detail.values[planId] === 'Upgrade required' ? 'text-[#0B0B0B]/45' : ''}`}>{detail.values[planId]}</td>)}</tr>)}</tbody></table></div>
       </section>
 
       <p className="text-xs text-[#0B0B0B]/50 font-mono">* Unlimited recommendations are subject to reasonable fair use. Manage payment details, cancellation, and renewal dates above.</p>
