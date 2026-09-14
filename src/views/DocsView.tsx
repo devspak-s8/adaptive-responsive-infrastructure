@@ -37,14 +37,6 @@ const snippets = {
     '',
     "init({ projectKey: 'adp_pk_...', apiBaseUrl: 'https://api.yourdomain.com', autoAdapt: true });",
   ].join('\n'),
-  env: [
-    'NEXTAUTH_URL=https://app.yourdomain.com',
-    'API_PUBLIC_ORIGIN=https://api.yourdomain.com',
-    'GOOGLE_AI_API_KEY=your_server_only_key',
-    'GOOGLE_AI_MODEL=gemini-2.5-flash',
-    'DATABASE_URL=your_supabase_pooler_url',
-    'DIRECT_URL=your_supabase_direct_url',
-  ].join('\n'),
   options: [
     'export interface AdaptiveRuntimeOptions {',
     '  projectId?: string;',
@@ -140,10 +132,10 @@ export const DocsView: React.FC<DocsViewProps> = ({ onNavigate, userSession }) =
             </div>}
 
             {activeSection === 'deployment' && <div className="space-y-6">
-              {heading('Production', 'Deploy the API before testing a public site', 'npm publishing hosts the SDK only. The API must be reachable over HTTPS so customer websites can send heartbeats and layout events.')}
-              <div className={codeClass}><pre>{snippets.env}</pre>{copyButton(snippets.env, 'env')}</div>
-              <ol className="list-decimal pl-5 space-y-2 text-sm text-[#0B0B0B]/75"><li>Deploy <code>server/</code> to Render, Railway, Fly, or another Node host.</li><li>Run Prisma generation and migrations against the intended Supabase database.</li><li>Deploy the console and route its <code>/api</code> requests to the API.</li><li>Register <code>https://app.yourdomain.com/api/auth/callback/github</code> in GitHub OAuth.</li><li>Configure the Bachs webhook at the public API URL.</li><li>Refresh Setup and deploy the monitored website.</li></ol>
-              <div className="p-4 border border-[#0B0B0B]/15 rounded-md text-xs text-[#0B0B0B]/70"><b>Localhost warning:</b> <code>API_PUBLIC_ORIGIN=http://localhost:3001</code> is only for local testing. Production snippets must contain your public HTTPS API origin.</div>
+              {heading('Production', 'Connect your production site', 'The Adaptive API is the service that receives runtime heartbeats and layout events. Your project’s Setup & SDK page supplies the correct public API origin and runtime key.')}
+              <ol className="list-decimal pl-5 space-y-2 text-sm text-[#0B0B0B]/75"><li>Create a project with the real production URL and environment.</li><li>Copy the project ID, public runtime key, and API origin from <b>Setup &amp; SDK</b>.</li><li>Install the adapter for your stack and add it once at the application root.</li><li>Deploy the website over HTTPS, then refresh Setup until the first heartbeat is visible.</li><li>Use the dashboard to review detected issues, adaptations, verification, and rollback events.</li></ol>
+              <div className="p-4 border border-[#0B0B0B]/15 rounded-md text-xs text-[#0B0B0B]/70"><b>For this console’s operators:</b> API hosting, Auth.js, Supabase, Bachs, and Gemini are configured in the deployment environment—not in customer code. Keep those server-only values out of the browser. The repository README and <code>server/README.md</code> contain the operator deployment checklist.</div>
+              <div className="p-4 border border-emerald-700/20 bg-emerald-700/5 rounded-md text-xs text-[#0B0B0B]/70"><b>What you paste into your app:</b> only the project ID, the <code>adp_pk_...</code> public runtime key, and the API origin shown for that project.</div>
             </div>}
 
             {activeSection === 'intelligence' && <div className="space-y-6">
