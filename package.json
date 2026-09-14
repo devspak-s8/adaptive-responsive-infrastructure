@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite --configLoader runner --port=3000 --host=0.0.0.0",
     "build": "vite build --configLoader runner",
+    "check:runtime": "tsc -p packages/adaptive-runtime/tsconfig.json",
+    "build:runtime": "tsc -p packages/adaptive-runtime/tsconfig.build.json",
     "check:sdk": "tsc -p packages/adaptive-react/tsconfig.json",
     "build:sdk": "tsc -p packages/adaptive-react/tsconfig.build.json",
     "preview": "vite preview",

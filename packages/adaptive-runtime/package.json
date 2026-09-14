@@ -1,0 +1,13 @@
+{
+  "name": "@adaptive/runtime",
+  "version": "0.1.0",
+  "description": "Framework-agnostic Adaptive observer and responsive layout runtime.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "check": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json"
+  }
+}

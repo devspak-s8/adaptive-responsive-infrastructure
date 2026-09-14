@@ -8,7 +8,10 @@
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "paths": {
+      "@adaptive/runtime": ["../adaptive-runtime/src"]
+    }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"]
 }
