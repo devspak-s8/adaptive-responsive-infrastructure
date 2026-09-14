@@ -25,6 +25,12 @@ type LayoutAnomaly = {
   metrics: Record<string, number | string>;
 };
 
+type LayoutState = {
+  path: string;
+  viewport: { width: number; height: number };
+  nodes: LayoutTarget[];
+};
+
 type LayoutTarget = {
   targetId: string;
   tag: string;
@@ -150,6 +156,38 @@ const strategyAdaptation = (decision: StrategyDecision, target: LayoutTarget): A
   return { ...patch, targetId: decision.targetId, reason: decision.reason, strategy: decision.strategy };
 };
 
+const compareLayoutStates = (previous: LayoutState | null, current: LayoutState): LayoutAnomaly[] => {
+  if (!previous || previous.path !== current.path) return [];
+  const before = new Map(previous.nodes.map((node) => [node.targetId, node]));
+  const changes: LayoutAnomaly[] = [];
+  for (const node of current.nodes) {
+    const prior = before.get(node.targetId);
+    if (!prior) continue;
+    const shift = Math.hypot(node.rect.left - prior.rect.left, node.rect.top - prior.rect.top);
+    const widthRatio = Math.abs(node.rect.width - prior.rect.width) / Math.max(prior.rect.width, 1);
+    const heightRatio = Math.abs(node.rect.height - prior.rect.height) / Math.max(prior.rect.height, 1);
+    const lineDelta = Math.abs((node.lineCount ?? 0) - (prior.lineCount ?? 0));
+    const visibilityChanged = node.visible !== prior.visible;
+    if (visibilityChanged || shift > 24 || widthRatio > 0.35 || heightRatio > 0.5 || lineDelta >= 2) {
+      changes.push({
+        kind: 'material_layout_change',
+        severity: visibilityChanged || shift > 80 ? 'high' : 'medium',
+        confidence: 0.66,
+        targetIds: [node.targetId],
+        metrics: {
+          shift: Math.round(shift),
+          widthRatio: Number(widthRatio.toFixed(2)),
+          heightRatio: Number(heightRatio.toFixed(2)),
+          lineDelta,
+          visibilityChanged: visibilityChanged ? 'true' : 'false',
+        },
+      });
+      if (changes.length >= 12) break;
+    }
+  }
+  return changes;
+};
+
 /**
  * Connects a React application to the Adaptive runtime API. It observes real
  * layout boundaries, asks the server-side analyzer for a scoped safe patch,
@@ -180,6 +218,7 @@ export const AdaptiveProvider = ({
     let stopped = false;
     let checkRunning = false;
     let targetCounter = 0;
+    let previousState: LayoutState | null = null;
 
     const request = async (path: string, body: unknown, keepalive = false): Promise<Record<string, unknown> | null> => {
       try {
@@ -362,7 +401,7 @@ export const AdaptiveProvider = ({
       if (improved) scheduleChecks();
     };
 
-    const requestAdaptation = async (targets: LayoutTarget[], beforeScrollWidth: number, anomalies: LayoutAnomaly[], graph: LayoutTarget[]) => {
+    const requestAdaptation = async (targets: LayoutTarget[], beforeScrollWidth: number, anomalies: LayoutAnomaly[], graph: LayoutTarget[], previousGraph: LayoutTarget[]) => {
       if (!autoAdapt || targets.length === 0 || stopped) return;
       const payload = await request('/api/runtime/analyze', {
         sessionId,
@@ -373,7 +412,8 @@ export const AdaptiveProvider = ({
           rootScrollWidth: beforeScrollWidth,
           targets,
           anomalies,
-          graph,
+          currentGraph: graph,
+          previousGraph,
         },
       });
       const directAdaptation = safeAdaptation(payload?.adaptation);
@@ -393,21 +433,26 @@ export const AdaptiveProvider = ({
       const dimensions = viewport();
       const rootScrollWidth = Math.max(document.documentElement.scrollWidth, document.body?.scrollWidth ?? 0);
       const graph = collectLayoutGraph();
-      const suspiciousTargets = Array.from(new Map(graph.anomalies.flatMap((anomaly) => anomaly.targetIds)
+      const currentState: LayoutState = { path: pagePath(), viewport: dimensions, nodes: graph.nodes };
+      const stateChanges = compareLayoutStates(previousState, currentState);
+      const previousGraph = previousState?.nodes ?? [];
+      previousState = currentState;
+      const signals = [...graph.anomalies, ...stateChanges].slice(0, 24);
+      const suspiciousTargets = Array.from(new Map(signals.flatMap((anomaly) => anomaly.targetIds)
         .map((targetId) => graph.nodes.find((node) => node.targetId === targetId))
         .filter((target): target is LayoutTarget => Boolean(target))
         .map((target) => [target.targetId, target] as const)).values());
-      if (graph.anomalies.length > 0) {
-        const signature = `${pagePath()}|${dimensions.width}x${dimensions.height}|${graph.anomalies.map((anomaly) => `${anomaly.kind}:${anomaly.targetIds.join(',')}`).join('|')}`;
+      if (signals.length > 0) {
+        const signature = `${pagePath()}|${dimensions.width}x${dimensions.height}|${signals.map((anomaly) => `${anomaly.kind}:${anomaly.targetIds.join(',')}`).join('|')}`;
         if (!seenIssues.has(signature)) {
           seenIssues.add(signature);
           enqueue({
             type: 'layout_issue',
             path: pagePath(),
             viewport: dimensions,
-            metadata: { issue: graph.anomalies[0]?.kind ?? 'responsive-anomaly', rootScrollWidth, targets: suspiciousTargets.slice(0, 8), graph: graph.nodes, anomalies: graph.anomalies },
+            metadata: { issue: signals[0]?.kind ?? 'layout-state-change', rootScrollWidth, targets: suspiciousTargets.slice(0, 8), graph: graph.nodes, anomalies: signals },
           });
-          void requestAdaptation(suspiciousTargets.slice(0, 8), rootScrollWidth, graph.anomalies, graph.nodes);
+          void requestAdaptation(suspiciousTargets.slice(0, 8), rootScrollWidth, signals, graph.nodes, previousGraph);
         }
       }
       checkRunning = false;

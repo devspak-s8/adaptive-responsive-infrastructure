@@ -426,7 +426,7 @@ const upsertRuntimeIssue = async (projectId: string, payload: {
 
 const persistLayoutIssue = async (projectId: string, sessionId: string, path: string | null, viewport: { width: number | null; height: number | null }, metadata: Record<string, unknown>) => {
   const issue = runtimeValue(metadata.issue, 80) ?? 'responsive-layout';
-  const graph = Array.isArray(metadata.graph) ? metadata.graph : [];
+  const graph = Array.isArray(metadata.graph) ? metadata.graph : Array.isArray(metadata.currentGraph) ? metadata.currentGraph : [];
   const graphById = new Map<string, Record<string, unknown>>();
   for (const value of graph) {
     const target = metadataObject(value);
@@ -535,32 +535,44 @@ const normalizeAdaptation = (value: unknown): { targetId: string; property: stri
 
 const normalizeStrategy = (value: unknown): { targetId: string; strategy: string; reason: string } | null => {
   if (!value || typeof value !== 'object') return null;
-  const candidate = (value as { strategy?: unknown }).strategy;
-  if (!candidate || typeof candidate !== 'object') return null;
-  const decision = candidate as Record<string, unknown>;
+  const root = value as Record<string, unknown>;
+  const candidate = root.strategy ?? root.runtime_strategy;
+  const decision = typeof candidate === 'object' && candidate !== null
+    ? candidate as Record<string, unknown>
+    : { strategy: candidate, targetId: root.targetId, reason: root.reason };
   const targetId = runtimeValue(decision.targetId, 80);
-  const strategy = runtimeValue(decision.strategy, 80);
+  const strategy = runtimeValue(decision.strategy, 80)?.toLowerCase().replace(/_/g, '-') ?? null;
   const reason = runtimeValue(decision.reason, 240) ?? 'Validated responsive adaptation strategy';
   if (!targetId || !strategy || !allowedStrategies.has(strategy)) return null;
   return { targetId, strategy, reason };
 };
 
-const deterministicStrategy = (issue: string, context: Record<string, unknown>): { strategy: string; targetId: string; reason: string } | null => {
-  const anomalies = Array.isArray(context.anomalies) ? context.anomalies : [];
-  const first = anomalies[0] && typeof anomalies[0] === 'object' ? anomalies[0] as Record<string, unknown> : null;
-  const targetIds = first && Array.isArray(first.targetIds) ? first.targetIds : [];
-  const firstTarget = Array.isArray(context.targets) && context.targets[0] && typeof context.targets[0] === 'object' ? context.targets[0] as Record<string, unknown> : null;
-  const targetId = typeof targetIds[0] === 'string' ? targetIds[0] : runtimeValue(firstTarget?.targetId, 100);
-  if (!targetId) return null;
-  const kind = runtimeValue(first?.kind, 80)?.toLowerCase() ?? issue.toLowerCase();
-  const strategy = kind.includes('collision') ? 'compact-navigation'
-    : kind.includes('wrapping') ? 'allow-wrap'
-      : kind.includes('grid') ? 'responsive-grid'
-        : kind.includes('media') ? 'contain-media'
-          : kind.includes('modal') ? 'reposition-modal'
-            : kind.includes('table') ? 'scroll-table'
-              : 'fluid-width';
-  return { strategy, targetId, reason: `Deterministic candidate for ${kind.replace(/_/g, ' ')}` };
+const normalizeLayoutDecision = (value: unknown): {
+  healthy: boolean;
+  confidence: number;
+  affectedRegion: string | null;
+  reason: string | null;
+  severity: 'High' | 'Medium' | 'Low';
+  adaptationNeeded: boolean;
+} | null => {
+  if (!value || typeof value !== 'object') return null;
+  const decision = value as Record<string, unknown>;
+  const confidenceValue = typeof decision.confidence === 'number' && Number.isFinite(decision.confidence)
+    ? Math.max(0, Math.min(1, decision.confidence))
+    : null;
+  const healthy = typeof decision.healthy === 'boolean' ? decision.healthy : null;
+  if (confidenceValue === null || healthy === null) return null;
+  const severityValue = runtimeValue(decision.severity, 20)?.toLowerCase();
+  return {
+    healthy,
+    confidence: confidenceValue,
+    affectedRegion: runtimeValue(decision.affected_region ?? decision.affectedRegion, 160),
+    reason: runtimeValue(decision.reason, 500),
+    severity: severityValue === 'high' ? 'High' : severityValue === 'low' ? 'Low' : 'Medium',
+    adaptationNeeded: typeof decision.adaptation_needed === 'boolean'
+      ? decision.adaptation_needed
+      : typeof decision.adaptationNeeded === 'boolean' ? decision.adaptationNeeded : !healthy,
+  };
 };
 
 const aiBaseUrl = () => (env('AI_API_BASE_URL') || 'https://api.openai.com/v1').replace(/\/+$/, '');
@@ -868,7 +880,6 @@ app.post('/api/runtime/analyze', runtimeCors, async (request, response) => {
 
   const contextViewport = runtimeViewport(context.viewport);
   const contextPath = runtimeValue(context.path, 512);
-  const fallbackStrategy = deterministicStrategy(issue, context);
   let persistedIssues: Awaited<ReturnType<typeof persistLayoutIssue>> = [];
   try {
     await touchRuntimeSession(project, sessionId);
@@ -882,15 +893,30 @@ app.post('/api/runtime/analyze', runtimeCors, async (request, response) => {
   }
   const issueIds: Record<string, string> = {};
   const contextTargets = Array.isArray(context.targets) ? context.targets : [];
-  contextTargets.forEach((target, index) => {
+  const contextAnomalies = Array.isArray(context.anomalies) ? context.anomalies : [];
+  for (const target of contextTargets) {
     const targetRecord = metadataObject(target);
     const targetId = targetRecord ? runtimeValue(targetRecord.targetId, 100) : null;
-    const issueRecord = persistedIssues[index];
-    if (targetId && issueRecord) issueIds[targetId] = issueRecord.id;
-  });
+    if (!targetRecord || !targetId) continue;
+    const matchingAnomaly = contextAnomalies.find((value) => {
+      const anomaly = metadataObject(value);
+      return Array.isArray(anomaly?.targetIds) && anomaly.targetIds.some((id) => String(id) === targetId);
+    });
+    const anomaly = metadataObject(matchingAnomaly);
+    const category = issueCategory(runtimeValue(anomaly?.kind, 80) ?? issue);
+    const stableElement = runtimeValue(targetRecord.id, 80)
+      ?? runtimeValue(targetRecord.classes, 120)
+      ?? runtimeValue(targetRecord.tag, 40)
+      ?? targetId;
+    const record = await prisma.responsiveIssueRecord.findUnique({
+      where: { projectId_fingerprint: { projectId: project.id, fingerprint: issueFingerprint(project.id, contextPath ?? '/', category, stableElement) } },
+      select: { id: true },
+    });
+    if (record) issueIds[targetId] = record.id;
+  }
 
   const apiKey = env('AI_API_KEY');
-  if (!apiKey) return response.json({ enabled: false, adaptation: null, strategy: fallbackStrategy, reason: 'AI_NOT_CONFIGURED', issueId: persistedIssues[0]?.id ?? null, issueIds });
+  if (!apiKey) return response.json({ enabled: false, adaptation: null, strategy: null, reason: 'AI_NOT_CONFIGURED', issueId: persistedIssues[0]?.id ?? null, issueIds });
 
   try {
     const subscription = await currentSubscription(project.ownerId);
@@ -906,29 +932,42 @@ app.post('/api/runtime/analyze', runtimeCors, async (request, response) => {
       body: JSON.stringify({
         model: env('AI_MODEL') || 'gpt-4o-mini',
         temperature: 0,
-        max_tokens: 350,
+        max_tokens: 500,
         messages: [
           {
             role: 'system',
-            content: 'You are a responsive-layout reasoner. Return JSON only. Prefer a validated strategy from this list: fluid-width, allow-wrap, compress-gap, stack-layout, compact-navigation, responsive-grid, contain-media, scroll-table, reposition-modal, scale-typography, collapse-secondary-actions. Return {"strategy":{"strategy":"...","targetId":"...","reason":"..."}} when a safe strategy is appropriate. You may return {"adaptation":{"targetId":"...","property":"...","value":"...","reason":"..."}} only when the strategy list cannot express the safe patch. Never use selectors, scripts, !important, display, position, height, or arbitrary DOM changes. If uncertain, return {"strategy":null,"adaptation":null}.',
+            content: 'You are a multimodal layout intelligence engine. Return JSON only. Compare the previous and current layout states and decide whether the interface materially degraded. Required fields: healthy (boolean), confidence (0..1), affected_region (string), reason (string), severity (low|medium|high), adaptation_needed (boolean). Only when adaptation_needed is true, choose one validated strategy from: fluid-width, allow-wrap, compress-gap, stack-layout, compact-navigation, responsive-grid, contain-media, scroll-table, reposition-modal, scale-typography, collapse-secondary-actions. Return it as {"strategy":{"strategy":"...","targetId":"...","reason":"..."}}. Never invent selectors, scripts, arbitrary JavaScript, or unvalidated CSS. A signal can be intentional or harmless; do not call it broken without evidence of material degradation.',
           },
           {
             role: 'user',
-            content: `Analyze this runtime layout context and return {"adaptation":{"targetId":"...","property":"...","value":"...","reason":"..."}} or {"adaptation":null}. Context: ${contextJson}`,
+            content: `Analyze this runtime layout context, including any previous state, current state, graph relationships, and observation signals. Return the required decision JSON and a strategy only when the layout materially degraded. Context: ${contextJson}`,
           },
         ],
       }),
     });
     const payload = await jsonBody(aiResponse);
     if (!aiResponse.ok) return response.status(502).json({ error: 'AI layout analysis is temporarily unavailable.', code: 'AI_UNAVAILABLE' });
-    const adaptation = normalizeAdaptation(parseAIJson(aiResponseContent(payload)));
-    const strategy = normalizeStrategy(parseAIJson(aiResponseContent(payload))) ?? fallbackStrategy;
+    const decisionPayload = parseAIJson(aiResponseContent(payload));
+    const decision = normalizeLayoutDecision(decisionPayload);
+    const adaptation = decision?.adaptationNeeded === false ? null : normalizeAdaptation(decisionPayload);
+    const strategy = decision?.adaptationNeeded === false ? null : normalizeStrategy(decisionPayload);
+    if (decision && persistedIssues.length > 0) {
+      await Promise.all(persistedIssues.map((record) => prisma.responsiveIssueRecord.update({
+        where: { id: record.id },
+        data: {
+          confidence: decision.confidence,
+          severity: decision.severity,
+          ...(decision.reason ? { cause: decision.reason } : {}),
+          ...(decision.affectedRegion ? { element: decision.affectedRegion.slice(0, 160) } : {}),
+        },
+      })));
+    }
     await prisma.usagePeriod.upsert({
       where: { userId_periodStart: { userId: project.ownerId, periodStart } },
       create: { userId: project.ownerId, periodStart, periodEnd: endOfUsagePeriod(periodStart), codeRecommendationsGenerated: 1 },
       update: { codeRecommendationsGenerated: { increment: 1 } },
     });
-    return response.json({ enabled: true, adaptation, strategy, issueId: persistedIssues[0]?.id ?? null, issueIds });
+    return response.json({ enabled: true, decision, adaptation, strategy, issueId: persistedIssues[0]?.id ?? null, issueIds });
   } catch (error) {
     const code = error instanceof Error && 'code' in error ? String((error as { code: string }).code) : '';
     if (code === 'RECOMMENDATION_LIMIT_REACHED') return response.status(429).json({ error: 'AI recommendation limit reached for this plan.', code });
