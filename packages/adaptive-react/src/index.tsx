@@ -33,6 +33,7 @@ type Adaptation = {
   property: string;
   value: string;
   reason?: string;
+  issueId?: string;
 };
 
 const allowedAdaptationProperties = new Set([
@@ -224,6 +225,7 @@ export const AdaptiveProvider = ({
         viewport: viewport(),
         metadata: {
           status: improved ? 'verified' : 'rolled_back',
+          issueId: adaptation.issueId,
           targetId: adaptation.targetId,
           property: adaptation.property,
           value: adaptation.value,
@@ -249,7 +251,9 @@ export const AdaptiveProvider = ({
       });
       const adaptation = safeAdaptation(payload?.adaptation);
       if (adaptation && targets.some((target) => target.targetId === adaptation.targetId)) {
-        await applyAdaptation(adaptation, beforeScrollWidth);
+        const issueIds = payload?.issueIds && typeof payload.issueIds === 'object' ? payload.issueIds as Record<string, unknown> : {};
+        const issueId = typeof issueIds[adaptation.targetId] === 'string' ? issueIds[adaptation.targetId] as string : undefined;
+        await applyAdaptation({ ...adaptation, issueId }, beforeScrollWidth);
       }
     };
 

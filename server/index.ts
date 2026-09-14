@@ -365,7 +365,12 @@ const upsertRuntimeIssue = async (projectId: string, payload: {
   const route = payload.path ?? '/';
   const element = targetLabel(payload.target);
   const category = issueCategory(payload.issue);
-  const fingerprint = issueFingerprint(projectId, route, category, runtimeValue(payload.target.targetId, 100) ?? element);
+  const stableElement = runtimeValue(payload.target.id, 80)
+    ?? runtimeValue(payload.target.classes, 120)
+    ?? runtimeValue(payload.target.tag, 40)
+    ?? runtimeValue(payload.target.targetId, 100)
+    ?? element;
+  const fingerprint = issueFingerprint(projectId, route, category, stableElement);
   const styles = metadataObject(payload.target.styles);
   const currentCss = styles ? Object.entries(styles).map(([key, value]) => `${key}: ${String(value)}`).join('; ') : null;
   const rootScrollWidth = payload.rootScrollWidth ?? null;
@@ -439,7 +444,10 @@ const persistRuntimeAdaptation = async (projectId: string, sessionId: string, pa
   const category = 'overflow';
   const route = path ?? '/';
   const fingerprint = issueFingerprint(projectId, route, category, targetId);
-  const issue = await prisma.responsiveIssueRecord.findUnique({ where: { projectId_fingerprint: { projectId, fingerprint } } });
+  const linkedIssueId = runtimeValue(metadata.issueId, 80);
+  const issue = linkedIssueId
+    ? await prisma.responsiveIssueRecord.findFirst({ where: { id: linkedIssueId, projectId } })
+    : await prisma.responsiveIssueRecord.findUnique({ where: { projectId_fingerprint: { projectId, fingerprint } } });
   return prisma.runtimeAdaptation.create({
     data: {
       projectId,
@@ -799,9 +807,17 @@ app.post('/api/runtime/analyze', runtimeCors, async (request, response) => {
     // adaptation when the analyzer is available.
     console.warn('[runtime warning] issue persistence unavailable');
   }
+  const issueIds: Record<string, string> = {};
+  const contextTargets = Array.isArray(context.targets) ? context.targets : [];
+  contextTargets.forEach((target, index) => {
+    const targetRecord = metadataObject(target);
+    const targetId = targetRecord ? runtimeValue(targetRecord.targetId, 100) : null;
+    const issueRecord = persistedIssues[index];
+    if (targetId && issueRecord) issueIds[targetId] = issueRecord.id;
+  });
 
   const apiKey = env('AI_API_KEY');
-  if (!apiKey) return response.json({ enabled: false, adaptation: null, reason: 'AI_NOT_CONFIGURED', issueId: persistedIssues[0]?.id ?? null });
+  if (!apiKey) return response.json({ enabled: false, adaptation: null, reason: 'AI_NOT_CONFIGURED', issueId: persistedIssues[0]?.id ?? null, issueIds });
 
   try {
     const subscription = await currentSubscription(project.ownerId);
@@ -838,7 +854,7 @@ app.post('/api/runtime/analyze', runtimeCors, async (request, response) => {
       create: { userId: project.ownerId, periodStart, periodEnd: endOfUsagePeriod(periodStart), codeRecommendationsGenerated: 1 },
       update: { codeRecommendationsGenerated: { increment: 1 } },
     });
-    return response.json({ enabled: true, adaptation, issueId: persistedIssues[0]?.id ?? null });
+    return response.json({ enabled: true, adaptation, issueId: persistedIssues[0]?.id ?? null, issueIds });
   } catch (error) {
     const code = error instanceof Error && 'code' in error ? String((error as { code: string }).code) : '';
     if (code === 'RECOMMENDATION_LIMIT_REACHED') return response.status(429).json({ error: 'AI recommendation limit reached for this plan.', code });
