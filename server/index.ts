@@ -228,6 +228,12 @@ const entitlementsFor = (subscription: EntitlementSource) => getEntitlements(sub
 const environmentName = (value: unknown): 'Production' | 'Staging' | 'Preview' =>
   value === 'Staging' || value === 'Preview' ? value : 'Production';
 
+const scanFrequencyName = (value: unknown): 'continuous' | 'hourly' | 'daily' =>
+  value === 'hourly' || value === 'daily' ? value : 'continuous';
+
+const protectionLevelName = (value: unknown): 'safe' | 'balanced' | 'aggressive' =>
+  value === 'balanced' || value === 'aggressive' ? value : 'safe';
+
 const projectResponse = (project: {
   id: string;
   name: string;
@@ -283,6 +289,10 @@ const runtimeProject = async (request: Request, response: Response) => {
   const project = await prisma.project.findUnique({ where: { runtimeKey: key } });
   if (!project) {
     response.status(401).json({ error: 'The runtime key is invalid.', code: 'RUNTIME_KEY_INVALID' });
+    return null;
+  }
+  if (!project.monitoring) {
+    response.status(403).json({ error: 'Runtime monitoring is disabled for this project.', code: 'RUNTIME_DISABLED' });
     return null;
   }
   return project;
@@ -695,12 +705,12 @@ app.get('/api/dashboard', async (request, response) => {
       environment: selected.environment,
       monitoringEnabled: selected.monitoring,
       autofixEnabled: selected.autofixEnabled,
-      automaticRollback: false,
-      scanFrequency: 'continuous',
-      notifyRegression: true,
-      notifyCritical: true,
-      notifyAutofix: true,
-      protectionLevel: 'balanced',
+      automaticRollback: selected.automaticRollback,
+      scanFrequency: scanFrequencyName(selected.scanFrequency),
+      notifyRegression: selected.notifyRegression,
+      notifyCritical: selected.notifyCritical,
+      notifyAutofix: selected.notifyAutofix,
+      protectionLevel: protectionLevelName(selected.protectionLevel),
     } : null,
   });
 });
@@ -740,8 +750,33 @@ app.put('/api/projects/:id/settings', async (request, response) => {
   const project = await prisma.project.findFirst({ where: { id: request.params.id, ownerId: user.id } });
   if (!project) return response.status(404).json({ error: 'Project not found.' });
   try {
+    const entitlements = entitlementsFor(await currentSubscription(user.id));
     const autofixEnabled = Boolean(request.body?.autofixEnabled);
-    if (autofixEnabled) assertCanUseAutofix(await entitlementsFor(await currentSubscription(user.id)));
+    const automaticRollback = typeof request.body?.automaticRollback === 'boolean' ? request.body.automaticRollback : project.automaticRollback;
+    const scanFrequency = scanFrequencyName(request.body?.scanFrequency ?? project.scanFrequency);
+    const notifyRegression = typeof request.body?.notifyRegression === 'boolean' ? request.body.notifyRegression : project.notifyRegression;
+    const notifyCritical = typeof request.body?.notifyCritical === 'boolean' ? request.body.notifyCritical : project.notifyCritical;
+    const notifyAutofix = typeof request.body?.notifyAutofix === 'boolean' ? request.body.notifyAutofix : project.notifyAutofix;
+    const protectionLevel = protectionLevelName(request.body?.protectionLevel ?? project.protectionLevel);
+    if (autofixEnabled && !entitlements.autofix) assertCanUseAutofix(entitlements);
+    if (automaticRollback && !entitlements.automaticRollback && automaticRollback !== project.automaticRollback) {
+      return response.status(403).json({ error: 'Automatic rollback is available on the Autopilot plan.', code: 'FEATURE_NOT_AVAILABLE' });
+    }
+    if (scanFrequency === 'continuous' && !entitlements.deploymentMonitoring && scanFrequency !== project.scanFrequency) {
+      return response.status(403).json({ error: 'Continuous deployment scanning requires the Developer plan.', code: 'FEATURE_NOT_AVAILABLE' });
+    }
+    if (notifyRegression && !entitlements.deploymentMonitoring && notifyRegression !== project.notifyRegression) {
+      return response.status(403).json({ error: 'Deployment regression alerts require the Developer plan.', code: 'FEATURE_NOT_AVAILABLE' });
+    }
+    if (notifyAutofix && !entitlements.autofix && notifyAutofix !== project.notifyAutofix) {
+      return response.status(403).json({ error: 'Autofix reports require the Autopilot plan.', code: 'FEATURE_NOT_AVAILABLE' });
+    }
+    if (protectionLevel === 'balanced' && !entitlements.deploymentMonitoring && protectionLevel !== project.protectionLevel) {
+      return response.status(403).json({ error: 'Balanced protection requires the Developer plan.', code: 'FEATURE_NOT_AVAILABLE' });
+    }
+    if (protectionLevel === 'aggressive' && !entitlements.autofix && protectionLevel !== project.protectionLevel) {
+      return response.status(403).json({ error: 'Aggressive protection requires the Autopilot plan.', code: 'FEATURE_NOT_AVAILABLE' });
+    }
     const updated = await prisma.project.update({
       where: { id: project.id },
       data: {
@@ -750,6 +785,12 @@ app.put('/api/projects/:id/settings', async (request, response) => {
         environment: environmentName(request.body?.environment ?? project.environment),
         monitoring: typeof request.body?.monitoringEnabled === 'boolean' ? request.body.monitoringEnabled : project.monitoring,
         autofixEnabled,
+        automaticRollback,
+        scanFrequency,
+        notifyRegression,
+        notifyCritical,
+        notifyAutofix,
+        protectionLevel,
       },
     });
     return response.json(projectResponse(updated));
@@ -758,6 +799,15 @@ app.put('/api/projects/:id/settings', async (request, response) => {
     if (code === 'FEATURE_NOT_AVAILABLE') return response.status(403).json({ error: 'Autofix is available on the Autopilot plan.', code });
     return response.status(500).json({ error: errorMessage(error) });
   }
+});
+
+app.delete('/api/projects/:id', async (request, response) => {
+  const user = await requireUser(request, response);
+  if (!user) return;
+  const project = await prisma.project.findFirst({ where: { id: request.params.id, ownerId: user.id }, select: { id: true } });
+  if (!project) return response.status(404).json({ error: 'Project not found.' });
+  await prisma.project.delete({ where: { id: project.id } });
+  return response.sendStatus(204);
 });
 
 app.patch('/api/issues/:id', async (request, response) => {

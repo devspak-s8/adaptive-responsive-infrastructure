@@ -97,6 +97,12 @@ model Project {
   environment    String   @default("Production")
   monitoring     Boolean  @default(true)
   autofixEnabled Boolean  @default(false)
+  automaticRollback Boolean @default(false)
+  scanFrequency String   @default("continuous")
+  notifyRegression Boolean @default(true)
+  notifyCritical Boolean @default(true)
+  notifyAutofix Boolean @default(false)
+  protectionLevel String @default("safe")
   runtimeKey     String?  @unique
   lastHeartbeatAt DateTime?
   createdAt      DateTime @default(now())

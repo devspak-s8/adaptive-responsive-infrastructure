@@ -10,7 +10,7 @@ import {
 } from './types';
 import { DEFAULT_SETTINGS } from './defaults';
 import { getAuthSession, signInWithGitHub as redirectToGitHub, signOut as signOutFromAuth } from './lib/authClient';
-import { createProject, fetchDashboardData, saveProjectSettings, updateIssueStatus } from './services/dashboardData';
+import { createProject, deleteProject, fetchDashboardData, saveProjectSettings, updateIssueStatus } from './services/dashboardData';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { IssueDetailPanel } from './components/IssueDetailPanel';
@@ -276,14 +276,18 @@ export default function App() {
               canUseDeploymentMonitoring={currentPlan === 'developer' || currentPlan === 'autopilot'}
               onUpgrade={() => navigate('pricing')} onSelectDeployment={setSelectedDeployment} />}
             {currentPage === 'activity' && <ActivityView activities={activities} onOpenIssue={() => navigate('issues')} />}
-            {currentPage === 'settings' && <SettingsView settings={settings} onSave={async (next) => {
+            {currentPage === 'settings' && <SettingsView settings={settings} currentPlan={currentPlan} onUpgrade={() => navigate('pricing')} onDelete={async () => {
               if (!currentProject) return;
+              await deleteProject(currentProject.id);
+              await loadData();
+              navigate('projects');
+            }} onSave={async (next) => {
+              if (!currentProject) throw new Error('Select a project before saving settings.');
               try {
                 await saveProjectSettings(currentProject.id, next);
-                setSettings(next);
-                setCurrentProject({ ...currentProject, name: next.projectName, url: next.productionUrl, environment: next.environment as ProjectItem['environment'] });
+                await loadData(currentProject.id);
               } catch (error) {
-                setDataError(error instanceof Error ? error.message : 'Settings could not be saved.');
+                throw new Error(error instanceof Error ? error.message : 'Settings could not be saved.');
               }
             }} />}
             {currentPage === 'viewport-lab' && <ViewportLabView onSelectIssue={setSelectedIssue} activeIssues={issues} autofixActive={autofixActive} />}

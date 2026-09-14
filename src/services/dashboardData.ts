@@ -20,6 +20,7 @@ const api = async <T>(path: string, init?: RequestInit): Promise<T> => {
     const fallback = response.status >= 500 ? 'The service is temporarily unavailable.' : `Request failed (${response.status}).`;
     throw new Error(response.status < 500 ? (payload.error ?? fallback) : fallback);
   }
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 };
 
@@ -35,3 +36,6 @@ export const updateIssueStatus = (issueId: string, status: ResponsiveIssue['stat
 
 export const saveProjectSettings = (projectId: string, settings: ProjectSettings): Promise<void> =>
   api<void>(`/api/projects/${encodeURIComponent(projectId)}/settings`, { method: 'PUT', body: JSON.stringify(settings) });
+
+export const deleteProject = (projectId: string): Promise<void> =>
+  api<void>(`/api/projects/${encodeURIComponent(projectId)}`, { method: 'DELETE' });
