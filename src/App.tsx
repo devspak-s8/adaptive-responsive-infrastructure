@@ -254,7 +254,7 @@ export default function App() {
         openIssuesCount={issues.filter((issue) => issue.status === 'Open').length}
         autofixActive={Boolean(currentProject) && autofixActive} onShowLogin={signOut}
         isMobileOpen={isMobileNavOpen} onCloseMobile={() => setIsMobileNavOpen(false)} userSession={userSession}
-        isLoading={dataLoading} projects={projects} currentProject={currentProject}
+        projects={projects} currentProject={currentProject}
         onSelectProject={(project) => { setCurrentProject(project); void loadData(project.id); }} />
       <div className="flex-1 flex flex-col min-w-0 h-screen h-[100dvh] overflow-y-auto max-w-full">
         <Header currentPage={currentPage} currentProject={currentProject} projects={projects}

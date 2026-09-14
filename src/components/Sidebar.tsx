@@ -15,7 +15,6 @@ import {
   X,
   Github,
   Zap,
-  LoaderCircle,
   ChevronDown,
   Check,
   Plus,
@@ -31,7 +30,6 @@ interface SidebarProps {
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
   userSession?: UserSession | null;
-  isLoading?: boolean;
   projects: ProjectItem[];
   currentProject: ProjectItem | null;
   onSelectProject: (project: ProjectItem) => void;
@@ -46,7 +44,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isMobileOpen = false,
   onCloseMobile,
   userSession,
-  isLoading = false,
   projects,
   currentProject,
   onSelectProject,
@@ -154,26 +151,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onClick={() => handleItemClick('overview')}
             className="flex items-center text-left group"
           >
-            <div className="border-l-2 border-[#F5F3EE]/65 pl-3 transition-colors group-hover:border-[#F5F3EE]">
+            <div className="my-6 border-l-2 border-[#F5F3EE]/65 pl-3 transition-colors group-hover:border-[#F5F3EE]">
               <span className="block font-mono text-[15px] tracking-[0.22em] uppercase font-semibold leading-none text-[#F5F3EE]">
                 Adaptive
-              </span>
-              <span className="block mt-1.5 text-[9px] text-[#F5F3EE]/45 font-mono tracking-[0.16em] leading-none uppercase">
-                Responsive systems
               </span>
             </div>
           </button>
 
           <div className="flex items-center gap-2">
-            {/* Quick status pill */}
-            <div 
-              title="Runtime status"
-              className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-[#F5F3EE]/15 bg-[#F5F3EE]/5 text-[10px] font-mono text-[#F5F3EE]/70"
-            >
-              {isLoading ? <LoaderCircle className="w-3 h-3 animate-spin text-[#F5F3EE]/80" aria-hidden="true" /> : <span className="w-1.5 h-1.5 rounded-full border border-[#F5F3EE]/50"></span>}
-              <span>{isLoading ? 'SYNCING' : 'NO DATA'}</span>
-            </div>
-
             {/* Mobile close button */}
             {onCloseMobile && (
               <button
@@ -307,7 +292,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
 
         {/* User profile row */}
-        <div className="mt-4 border-t border-[#F5F3EE]/10 pt-4">
+        <div className="mt-4 mb-4 border-t border-[#F5F3EE]/10 pt-4">
           <div className="flex items-center gap-2.5 rounded-lg border border-[#F5F3EE]/10 bg-[#F5F3EE]/[0.04] p-3">
             {userSession?.avatarUrl ? (
               <img
