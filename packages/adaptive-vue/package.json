@@ -8,5 +8,5 @@
   "files": ["dist"],
   "dependencies": { "@adaptive/runtime": "0.1.0" },
   "peerDependencies": { "vue": ">=3" },
-  "scripts": { "check": "tsc -p tsconfig.json", "build": "tsc -p tsconfig.build.json" }
+  "scripts": { "prebuild": "node ../../scripts/clean-package-dist.mjs", "check": "tsc -p tsconfig.json", "build": "tsc -p tsconfig.build.json", "prepublishOnly": "npm run build" }
 }

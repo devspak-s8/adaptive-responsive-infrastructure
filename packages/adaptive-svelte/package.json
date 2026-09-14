@@ -7,8 +7,10 @@
   "types": "./dist/index.d.ts",
   "files": ["dist"],
   "scripts": {
+    "prebuild": "node ../../scripts/clean-package-dist.mjs",
     "check": "tsc -p tsconfig.json",
-    "build": "tsc -p tsconfig.build.json"
+    "build": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@adaptive/runtime": "0.1.0"

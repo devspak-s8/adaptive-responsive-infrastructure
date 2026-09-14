@@ -20,8 +20,9 @@
     "build:angular": "tsc -p packages/adaptive-angular/tsconfig.build.json",
     "check:browser": "tsc -p packages/adaptive-browser/tsconfig.json",
     "build:browser": "tsc -p packages/adaptive-browser/tsconfig.build.json",
+    "clean:adapters": "node scripts/clean-adapter-dists.mjs",
     "check:adapters": "npm.cmd run check:next && npm.cmd run check:vue && npm.cmd run check:svelte && npm.cmd run check:angular && npm.cmd run check:browser",
-    "build:adapters": "npm.cmd run build:runtime && npm.cmd run build:sdk && npm.cmd run build:next && npm.cmd run build:vue && npm.cmd run build:svelte && npm.cmd run build:angular && npm.cmd run build:browser",
+    "build:adapters": "npm.cmd run clean:adapters && npm.cmd run build:runtime && npm.cmd run build:sdk && npm.cmd run build:next && npm.cmd run build:vue && npm.cmd run build:svelte && npm.cmd run build:angular && npm.cmd run build:browser",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit"
