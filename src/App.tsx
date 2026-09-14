@@ -32,21 +32,20 @@ import { LandingView } from './views/LandingView';
 import { PricingView } from './views/PricingView';
 import { ConsolePricingView } from './views/ConsolePricingView';
 import { DocsView } from './views/DocsView';
-import { BillingView } from './views/BillingView';
 import { getPlanLimits, type PlanId } from './config/plans';
 
 const routeByPath: Record<string, PageType> = {
   '/': 'landing', '/pricing': 'pricing', '/docs': 'docs', '/login': 'login', '/auth/error': 'auth-error',
   '/dashboard': 'overview', '/overview': 'overview', '/projects': 'projects', '/issues': 'issues', '/autofix': 'autofix',
   '/viewport-lab': 'viewport-lab', '/deployments': 'deployments', '/activity': 'activity',
-  '/settings': 'settings', '/billing': 'billing', '/billing/success': 'billing', '/setup': 'setup',
+  '/settings': 'settings', '/billing': 'pricing', '/billing/success': 'pricing', '/setup': 'setup',
 };
 
 const pathByRoute: Record<PageType, string> = Object.fromEntries(
   Object.entries(routeByPath).map(([path, page]) => [page, path]),
 ) as Record<PageType, string>;
+pathByRoute.pricing = '/pricing';
 pathByRoute.overview = '/dashboard';
-pathByRoute.billing = '/billing';
 
 const pageFromLocation = () => routeByPath[window.location.pathname] ?? 'landing';
 const publicPages = new Set<PageType>(['landing', 'pricing', 'docs', 'login', 'auth-error']);
@@ -90,7 +89,7 @@ export default function App() {
       landing: 'Adaptive | Responsive Infrastructure', pricing: 'Pricing | Adaptive', docs: 'Docs | Adaptive',
       login: 'Sign in | Adaptive', 'auth-error': 'Server error | Adaptive', overview: 'Overview | Adaptive', projects: 'Projects | Adaptive',
       issues: 'Issues | Adaptive', autofix: 'Autofix | Adaptive', 'viewport-lab': 'Viewport Lab | Adaptive',
-      deployments: 'Deployments | Adaptive', activity: 'Activity | Adaptive', settings: 'Settings | Adaptive', billing: 'Billing | Adaptive',
+      deployments: 'Deployments | Adaptive', activity: 'Activity | Adaptive', settings: 'Settings | Adaptive',
       setup: 'Setup & SDK | Adaptive',
     };
     document.title = labels[currentPage];
@@ -289,7 +288,6 @@ export default function App() {
             }} />}
             {currentPage === 'viewport-lab' && <ViewportLabView onSelectIssue={setSelectedIssue} activeIssues={issues} autofixActive={autofixActive} />}
             {currentPage === 'pricing' && <ConsolePricingView currentPlan={currentPlan} onNavigate={navigate} />}
-            {currentPage === 'billing' && <BillingView onNavigate={navigate} />}
           </>}
         </main>
       </div>

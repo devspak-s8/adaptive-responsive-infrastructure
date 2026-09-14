@@ -14,7 +14,7 @@ interface HeaderProps {
 const labels: Partial<Record<PageType, string>> = {
   overview: 'Overview', projects: 'Projects', issues: 'Issues', autofix: 'Autofix',
   'viewport-lab': 'Viewport Lab', deployments: 'Deployments', activity: 'Activity',
-  settings: 'Settings', billing: 'Billing', setup: 'Setup & SDK',
+  settings: 'Settings', pricing: 'Plans & billing', setup: 'Setup & SDK',
 };
 
 export const Header: React.FC<HeaderProps> = ({

@@ -12,7 +12,6 @@ export type PageType =
   | 'deployments'
   | 'activity'
   | 'settings'
-  | 'billing'
   | 'setup';
 
 export interface UserSession {

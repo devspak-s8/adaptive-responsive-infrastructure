@@ -15,7 +15,6 @@ import {
   X,
   Github,
   Zap,
-  CreditCard,
   LoaderCircle,
   ChevronDown,
   Check,
@@ -140,7 +139,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'viewport-lab', label: 'Viewport Lab', icon: <Eye className="w-4 h-4" /> },
     { id: 'deployments', label: 'Deployments', icon: <GitCommit className="w-4 h-4" /> },
     { id: 'activity', label: 'Activity', icon: <Activity className="w-4 h-4" /> },
-    { id: 'billing', label: 'Billing', icon: <CreditCard className="w-4 h-4" /> },
     { id: 'pricing', label: 'Pricing', icon: <Zap className="w-4 h-4" /> },
     { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> },
   ];
@@ -259,7 +257,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
           {navItems.map((item) => {
             const isSelected = currentPage === item.id;
-            const isBilling = item.id === 'billing';
             return (
               <button
                 key={item.id}
@@ -269,7 +266,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 className={`w-full flex items-center justify-between px-3 py-2.5 text-[13px] rounded-md transition-all duration-150 text-left min-h-[42px] ${
                   isSelected
                     ? 'bg-[#F5F3EE]/15 text-[#F5F3EE] font-medium border border-[#F5F3EE]/20 shadow-xs'
-                    : `text-[#F5F3EE]/70 hover:text-[#F5F3EE] hover:bg-[#F5F3EE]/5 ${isBilling ? 'border border-[#F5F3EE]/10 bg-[#F5F3EE]/[0.03]' : ''}`
+                    : 'text-[#F5F3EE]/70 hover:text-[#F5F3EE] hover:bg-[#F5F3EE]/5'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
