@@ -38,11 +38,12 @@ Auth.js session. Heartbeats and bounded events are stored in `RuntimeSession`
 and `RuntimeEvent`; new sessions increment the owner's monthly monitored-session
 usage and are rejected when the plan limit is reached.
 
-If `AI_API_KEY` is configured, `/api/runtime/analyze` calls the configured
-OpenAI-compatible chat-completions endpoint with bounded layout context. The
-response is validated against an allowlist of reversible CSS properties before
-it is returned to the SDK. AI calls count against the plan's recommendation
-allowance; the key remains server-only.
+If `GOOGLE_AI_API_KEY` is configured, `/api/runtime/analyze` calls Google's
+Gemini `generateContent` endpoint with bounded layout context and requests JSON
+output. The response is validated against an allowlist of reversible CSS
+strategies before it is returned to the SDK. AI calls count against the plan's
+recommendation allowance; the key remains server-only. `AI_PROVIDER` defaults to
+`google`, and `GOOGLE_AI_MODEL` defaults to `gemini-2.5-flash`.
 
 ## Authorization
 

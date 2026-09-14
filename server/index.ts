@@ -576,16 +576,33 @@ const normalizeLayoutDecision = (value: unknown): {
   };
 };
 
-const aiBaseUrl = () => (env('AI_API_BASE_URL') || 'https://api.openai.com/v1').replace(/\/+$/, '');
+const aiProvider = () => (env('AI_PROVIDER') || 'google').toLowerCase();
+const googleAiBaseUrl = () => (env('GOOGLE_AI_BASE_URL') || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/+$/, '');
+const googleAiModel = () => env('GOOGLE_AI_MODEL') || 'gemini-2.5-flash';
 
-const aiResponseContent = (payload: Record<string, unknown>): string | null => {
-  const choices = Array.isArray(payload.choices) ? payload.choices : [];
-  const first = choices[0];
+const googleResponseContent = (payload: Record<string, unknown>): string | null => {
+  const candidates = Array.isArray(payload.candidates) ? payload.candidates : [];
+  const first = candidates[0];
   if (!first || typeof first !== 'object') return null;
-  const message = (first as Record<string, unknown>).message;
-  if (!message || typeof message !== 'object') return null;
-  const content = (message as Record<string, unknown>).content;
-  return typeof content === 'string' ? content : null;
+  const content = (first as Record<string, unknown>).content;
+  if (!content || typeof content !== 'object') return null;
+  const parts = Array.isArray((content as Record<string, unknown>).parts)
+    ? (content as Record<string, unknown>).parts
+    : [];
+  const text = parts
+    .filter((part): part is Record<string, unknown> => Boolean(part && typeof part === 'object'))
+    .map((part) => part.text)
+    .filter((value): value is string => typeof value === 'string')
+    .join('\n')
+    .trim();
+  return text || null;
+};
+
+const googleImagePart = (value: unknown): Record<string, unknown> | null => {
+  if (typeof value !== 'string') return null;
+  const match = /^data:(image\/(?:png|jpeg|jpg|webp|gif|heic|heif|avif));base64,([a-z0-9+/=]+)$/i.exec(value);
+  if (!match) return null;
+  return { inline_data: { mime_type: match[1].toLowerCase() === 'image/jpg' ? 'image/jpeg' : match[1].toLowerCase(), data: match[2] } };
 };
 
 const parseAIJson = (content: string | null): unknown => {
@@ -916,7 +933,10 @@ app.post('/api/runtime/analyze', runtimeCors, async (request, response) => {
     if (record) issueIds[targetId] = record.id;
   }
 
-  const apiKey = env('AI_API_KEY');
+  if (aiProvider() !== 'google') {
+    return response.status(503).json({ error: 'The configured AI provider is not supported.', code: 'AI_PROVIDER_UNSUPPORTED' });
+  }
+  const apiKey = env('GOOGLE_AI_API_KEY');
   if (!apiKey) return response.json({ enabled: false, adaptation: null, strategy: null, reason: 'AI_NOT_CONFIGURED', issueId: persistedIssues[0]?.id ?? null, issueIds });
 
   try {
@@ -935,35 +955,28 @@ app.post('/api/runtime/analyze', runtimeCors, async (request, response) => {
     const visualMessages: Array<Record<string, unknown>> = [];
     for (const image of [currentVisualSnapshot, previousVisualSnapshot]) {
       if (typeof image === 'string' && image.startsWith('data:image/')) {
-        visualMessages.push({ type: 'image_url', image_url: { url: image, detail: 'low' } });
+        visualMessages.push({ image });
       }
     }
-    const userMessage = [
-      { type: 'text', text: `Analyze this runtime layout context, including any previous state, current state, graph relationships, and observation signals. Return the required decision JSON and a strategy only when the layout materially degraded. Context: ${contextJson}` },
-      ...visualMessages,
+    const userParts: Array<Record<string, unknown>> = [
+      { text: `Analyze this runtime layout context, including any previous state, current state, graph relationships, and observation signals. Return the required decision JSON and a strategy only when the layout materially degraded. Context: ${contextJson}` },
+      ...visualMessages
+        .map((image) => googleImagePart(image.image))
+        .filter((part): part is Record<string, unknown> => Boolean(part)),
     ];
-    const aiResponse = await fetch(`${aiBaseUrl()}/chat/completions`, {
+    const aiResponse = await fetch(`${googleAiBaseUrl()}/models/${encodeURIComponent(googleAiModel())}:generateContent?key=${encodeURIComponent(apiKey)}`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: env('AI_MODEL') || 'gpt-4o-mini',
-        temperature: 0,
-        max_tokens: 500,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a multimodal layout intelligence engine. Return JSON only. Compare the previous and current layout states and decide whether the interface materially degraded. Required fields: healthy (boolean), confidence (0..1), affected_region (string), reason (string), severity (low|medium|high), adaptation_needed (boolean). Only when adaptation_needed is true, choose one validated strategy from: fluid-width, allow-wrap, compress-gap, stack-layout, stack-actions, compact-navigation, responsive-grid, contain-media, scroll-table, reposition-modal, scale-typography, collapse-secondary-actions. Return it as {"strategy":{"strategy":"...","targetId":"...","reason":"..."}}. Never invent selectors, scripts, arbitrary JavaScript, or unvalidated CSS. A signal can be intentional or harmless; do not call it broken without evidence of material degradation.',
-          },
-          {
-            role: 'user',
-            content: userMessage,
-          },
-        ],
-      }),
+        system_instruction: {
+          parts: [{ text: 'You are a multimodal layout intelligence engine. Return JSON only. Compare the previous and current layout states and decide whether the interface materially degraded. Required fields: healthy (boolean), confidence (0..1), affected_region (string), reason (string), severity (low|medium|high), adaptation_needed (boolean). Only when adaptation_needed is true, choose one validated strategy from: fluid-width, allow-wrap, compress-gap, stack-layout, stack-actions, compact-navigation, responsive-grid, contain-media, scroll-table, reposition-modal, scale-typography, collapse-secondary-actions. Return it as {"strategy":{"strategy":"...","targetId":"...","reason":"..."}}. Never invent selectors, scripts, arbitrary JavaScript, or unvalidated CSS. A signal can be intentional or harmless; do not call it broken without evidence of material degradation.' }] },
+        contents: [{ role: 'user', parts: userParts }],
+        generationConfig: { temperature: 0, maxOutputTokens: 500, response_mime_type: 'application/json' },
+      })
     });
     const payload = await jsonBody(aiResponse);
     if (!aiResponse.ok) return response.status(502).json({ error: 'AI layout analysis is temporarily unavailable.', code: 'AI_UNAVAILABLE' });
-    const decisionPayload = parseAIJson(aiResponseContent(payload));
+    const decisionPayload = parseAIJson(googleResponseContent(payload));
     const decision = normalizeLayoutDecision(decisionPayload);
     const adaptation = decision?.adaptationNeeded === false ? null : normalizeAdaptation(decisionPayload);
     const strategy = decision?.adaptationNeeded === false ? null : normalizeStrategy(decisionPayload);
