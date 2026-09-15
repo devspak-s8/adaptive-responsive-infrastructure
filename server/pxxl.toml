@@ -1,0 +1,11 @@
+[build]
+language = "javascript"
+framework = "express"
+packageManager = "npm"
+runtime = "node"
+runtimeVersion = "24"
+nodeVersion = "24"
+installCommand = "npm ci"
+buildCommand = "npm run prisma:generate:production"
+startCommand = "npm start"
+port = 3001
