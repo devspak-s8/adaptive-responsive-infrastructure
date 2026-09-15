@@ -150,6 +150,25 @@ GOOGLE_AI_MODEL=gemini-2.5-flash
 
 Authentication is GitHub OAuth through Auth.js and application data is stored in Supabase-hosted PostgreSQL through Prisma. Supabase Auth is not used. Bachs is the billing source of truth; subscription state changes only from verified, idempotent webhooks.
 
+### Deploying on Pxxl
+
+Create two Pxxl projects from this GitHub repository: a Node service for
+`server/` and a static React/Vite site for the root console. Pxxl supports
+GitHub-connected projects, detected runtimes, build/start commands, and
+environment variables. Configure the Node service with root directory
+`server/`, build command `npm ci && npm run prisma:generate:production`, and
+start command `npm start`. Add every server-only variable from `.env.example`
+to that service, then run `npm run prisma:migrate:production` once from its
+shell before launch.
+
+Build the console with `npm ci && npm run build` and publish `dist/`. Route the
+console's `/api/*` path to the Node service (or serve both from one same-origin
+service); the console intentionally calls `/api` relatively so Auth.js cookies
+remain same-origin. Set `NEXTAUTH_URL` to the console HTTPS URL and
+`API_PUBLIC_ORIGIN` to the Node service HTTPS URL. Register
+`https://<console-domain>/api/auth/callback/github` in GitHub and point the
+Bachs webhook to the Node service's `/api/billing/webhook` endpoint.
+
 ## Runtime behavior
 
 The browser runtime records heartbeats and bounded events for viewport, route, DOM, CSSOM, overflow, wrapping, clipping, collisions, and layout mutations. Deterministic checks identify a new anomaly. When `GOOGLE_AI_API_KEY` is configured, the API sends bounded layout context to Gemini, validates the returned strategy against an allowlist, and returns at most one scoped adaptation. The runtime verifies the result immediately and rolls it back if the layout gets worse. Changes apply only to that visitor's session.

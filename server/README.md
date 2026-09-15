@@ -25,6 +25,13 @@ npm run dev
 
 Then, from the repository root, run `npm run dev` for the browser client. The first migration creates the Auth.js, subscription, project, usage, and webhook-idempotency tables in the Supabase PostgreSQL database. Do not run it until `DATABASE_URL` and `DIRECT_URL` point to the intended Supabase project.
 
+For a hosted Node service such as Pxxl, set the service root to `server/`, use
+`npm run prisma:generate:production` during the build, and use `npm start` as
+the start command. Pxxl injects environment variables directly, so the
+production commands intentionally do not depend on a local `.env.local` file.
+Run `npm run prisma:migrate:production` once against the intended database
+before accepting production traffic.
+
 ## Auth.js
 
 Use the official Auth.js GitHub provider and a PostgreSQL Prisma adapter. Mount the Auth.js handler at `/api/auth/*`, expose only the minimal session user (`id`, `name`, `githubLogin`, `avatarUrl`, `email`), and derive the internal user ID from the server session for every query. Do not pass GitHub access tokens to the client. If GitHub returns an expiring user token and refresh token, the server rotates it before the session callback; the local Auth.js session remains valid while that rotation occurs.
