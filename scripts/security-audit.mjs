@@ -39,15 +39,26 @@ assert(server.includes('verifyBachsWebhook'), 'Billing webhook signature verific
 assert(server.includes('BACHS_WEBHOOK_SECRET'), 'Billing webhook secret is missing.');
 assert(server.includes('runtimeVisualSnapshot'), 'Runtime visual evidence validation is missing.');
 
-for (const file of ['src', 'packages']) {
-  let source = '';
-  try {
-    source = execFileSync(process.platform === 'win32' ? 'rg.exe' : 'rg', ['-l', '--glob', '!**/dist/**', '--glob', '!**/node_modules/**', 'AUTH_SECRET|GITHUB_SECRET|DATABASE_URL|DIRECT_URL|BACHS_API_KEY|GOOGLE_AI_API_KEY', file], { cwd: root, encoding: 'utf8' }).trim();
-  } catch (error) {
-    if (error?.status !== 1) throw error;
+const sourceSecretPattern = /AUTH_SECRET|GITHUB_SECRET|DATABASE_URL|DIRECT_URL|BACHS_API_KEY|GOOGLE_AI_API_KEY/;
+const sourceExtensions = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json', '.css', '.html']);
+const sourceSecretMatches = [];
+const scanSourceTree = (relativeDirectory) => {
+  const directory = path.join(root, relativeDirectory);
+  if (!fs.existsSync(directory)) return;
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const relativePath = path.join(relativeDirectory, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name !== 'dist' && entry.name !== 'node_modules') scanSourceTree(relativePath);
+      continue;
+    }
+    if (!sourceExtensions.has(path.extname(entry.name).toLowerCase())) continue;
+    const source = fs.readFileSync(path.join(root, relativePath), 'utf8');
+    if (sourceSecretPattern.test(source)) sourceSecretMatches.push(relativePath);
   }
-  assert(!source, `Server-only environment names were found in browser/package source: ${source}`);
-}
+};
+scanSourceTree('src');
+scanSourceTree('packages');
+assert(sourceSecretMatches.length === 0, `Server-only environment names were found in browser/package source: ${sourceSecretMatches.join(', ')}`);
 
 const trackedEnv = execFileSync('git', ['ls-files', '.env.local', '.env', '*.env'], { cwd: root, encoding: 'utf8' }).trim();
 assert(!trackedEnv, `Environment files must not be tracked: ${trackedEnv}`);
