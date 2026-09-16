@@ -59,7 +59,7 @@ export const signInWithGitHub = async (): Promise<void> => {
   if (!csrfResponse.ok) throw await readError(csrfResponse, 'GitHub sign in is unavailable.');
   const csrfPayload = await readJsonBody<{ csrfToken?: string }>(csrfResponse);
   const csrfToken = csrfPayload?.csrfToken;
-  if (!csrfToken) throw new Error('GitHub sign in failed: missing CSRF token.');
+  if (!csrfToken) throw new Error('GitHub sign in is unavailable. Please try again.');
 
   // Submitting a form lets the browser follow Auth.js' OAuth redirect without
   // exposing provider responses to fetch/CORS handling in the client.
@@ -80,7 +80,7 @@ export const signOut = async (): Promise<void> => {
   if (!csrfResponse.ok) throw await readError(csrfResponse, 'Sign out failed.');
   const csrfPayload = await readJsonBody<{ csrfToken?: string }>(csrfResponse);
   const csrfToken = csrfPayload?.csrfToken;
-  if (!csrfToken) throw new Error('Sign out failed: missing CSRF token.');
+  if (!csrfToken) throw new Error('Sign out is unavailable. Please try again.');
   const response = await fetch('/api/auth/signout', {
     method: 'POST',
     credentials: 'include',
