@@ -11,10 +11,26 @@ interface AuthSessionResponse {
   } | null;
 }
 
+/**
+ * Auth endpoints normally return JSON, but a misrouted deployment can return
+ * an HTML platform error page. Read the body defensively so that a parser
+ * exception never reaches the sign-in UI or exposes platform details.
+ */
+const readJsonBody = async <T>(response: Response): Promise<T | null> => {
+  const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
+  const body = await response.text().catch(() => '');
+  if (!body || !contentType.includes('json')) return null;
+  try {
+    return JSON.parse(body) as T;
+  } catch {
+    return null;
+  }
+};
+
 const readError = async (response: Response, fallback: string): Promise<Error> => {
   // Do not surface server/provider payloads in the browser. They may contain
   // adapter details, emails, SQL, or upstream credentials.
-  await response.json().catch(() => null);
+  await response.text().catch(() => '');
   return new Error(fallback);
 };
 
@@ -22,7 +38,7 @@ const readError = async (response: Response, fallback: string): Promise<Error> =
 export const getAuthSession = async (): Promise<UserSession | null> => {
   const response = await fetch('/api/auth/session', { credentials: 'include' });
   if (!response.ok) throw await readError(response, 'Authentication service is unavailable.');
-  const payload = await response.json().catch(() => null) as AuthSessionResponse | null;
+  const payload = await readJsonBody<AuthSessionResponse>(response);
   // Auth.js returns a literal JSON null when there is no active session.
   const user = payload?.user ?? null;
   if (!user?.id || user.isAuthenticated === false) return null;
@@ -41,7 +57,8 @@ export const signInWithGitHub = async (): Promise<void> => {
   const callbackUrl = `${window.location.origin}/overview`;
   const csrfResponse = await fetch('/api/auth/csrf', { credentials: 'include' });
   if (!csrfResponse.ok) throw await readError(csrfResponse, 'GitHub sign in is unavailable.');
-  const { csrfToken } = await csrfResponse.json() as { csrfToken?: string };
+  const csrfPayload = await readJsonBody<{ csrfToken?: string }>(csrfResponse);
+  const csrfToken = csrfPayload?.csrfToken;
   if (!csrfToken) throw new Error('GitHub sign in failed: missing CSRF token.');
 
   // Submitting a form lets the browser follow Auth.js' OAuth redirect without
@@ -61,7 +78,8 @@ export const signInWithGitHub = async (): Promise<void> => {
 export const signOut = async (): Promise<void> => {
   const csrfResponse = await fetch('/api/auth/csrf', { credentials: 'include' });
   if (!csrfResponse.ok) throw await readError(csrfResponse, 'Sign out failed.');
-  const { csrfToken } = await csrfResponse.json() as { csrfToken?: string };
+  const csrfPayload = await readJsonBody<{ csrfToken?: string }>(csrfResponse);
+  const csrfToken = csrfPayload?.csrfToken;
   if (!csrfToken) throw new Error('Sign out failed: missing CSRF token.');
   const response = await fetch('/api/auth/signout', {
     method: 'POST',

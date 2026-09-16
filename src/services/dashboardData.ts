@@ -15,13 +15,17 @@ export interface DashboardData {
 
 const api = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const response = await fetch(path, { ...init, credentials: 'include', headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) } });
+  // A proxy/platform failure can return HTML even for an API URL. Never let
+  // that body escape as a JSON parser error in the console.
+  const payload = await response.json().catch(() => null) as ({ error?: string; code?: string } | T | null);
   if (!response.ok) {
-    const payload = await response.json().catch(() => ({})) as { error?: string; code?: string };
+    const errorPayload = payload && typeof payload === 'object' ? payload as { error?: string; code?: string } : null;
     const fallback = response.status >= 500 ? 'The service is temporarily unavailable.' : `Request failed (${response.status}).`;
-    throw new Error(response.status < 500 ? (payload.error ?? fallback) : fallback);
+    throw new Error(response.status < 500 ? (errorPayload?.error ?? fallback) : fallback);
   }
   if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
+  if (payload === null) throw new Error('The service returned an invalid response.');
+  return payload as T;
 };
 
 /** The API derives the current user from the Auth.js session, never from a client userId. */
