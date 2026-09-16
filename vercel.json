@@ -5,7 +5,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://adaptive-responsive-infrastructure.vercel.app/api/:path*"
+      "destination": "https://adaptive-api.vercel.app/api/:path*"
     },
     {
       "source": "/(.*)",
