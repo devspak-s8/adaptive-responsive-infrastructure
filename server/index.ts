@@ -1473,23 +1473,29 @@ app.use((error: unknown, _request: Request, response: Response, _next: unknown) 
   if (!response.headersSent) response.status(500).json({ error: 'Internal server error.' });
 });
 
-const port = Number(process.env.PORT || 3001);
-const server = app.listen(port);
-server.once('listening', () => {
-  console.log(`Adaptive API listening on http://localhost:${port}`);
-});
-server.once('error', (error: NodeJS.ErrnoException) => {
-  if (error.code === 'EADDRINUSE') {
-    console.error(`Adaptive API could not start: port ${port} is already in use. Stop the existing process or set PORT to another value.`);
-  } else {
-    console.error('Adaptive API could not start.', error.message);
-  }
-  process.exitCode = 1;
-});
+// Vercel uses the exported Express instance as a serverless Node function.
+// Local development still starts a conventional listener through tsx-entry.mjs.
+export default app;
 
-const shutdown = async () => {
-  server.close();
-  await prisma.$disconnect();
-};
-process.once('SIGINT', shutdown);
-process.once('SIGTERM', shutdown);
+if (!process.env.VERCEL) {
+  const port = Number(process.env.PORT || 3001);
+  const server = app.listen(port);
+  server.once('listening', () => {
+    console.log(`Adaptive API listening on http://localhost:${port}`);
+  });
+  server.once('error', (error: NodeJS.ErrnoException) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`Adaptive API could not start: port ${port} is already in use. Stop the existing process or set PORT to another value.`);
+    } else {
+      console.error('Adaptive API could not start.', error.message);
+    }
+    process.exitCode = 1;
+  });
+
+  const shutdown = async () => {
+    server.close();
+    await prisma.$disconnect();
+  };
+  process.once('SIGINT', shutdown);
+  process.once('SIGTERM', shutdown);
+}
