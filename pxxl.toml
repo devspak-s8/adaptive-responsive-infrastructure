@@ -1,0 +1,19 @@
+version = 1
+
+[build]
+language = "javascript"
+framework = "vite"
+packageManager = "npm"
+baseDirectory = "/"
+installCommand = "npm ci"
+buildCommand = "npm run build"
+outputDirectory = "dist"
+
+[routing]
+# Evaluate the API proxy before the SPA fallback below.
+spa = true
+cleanUrls = false
+
+[[rewrites]]
+source = "/api/:path*"
+destination = "https://adaptive-api.vercel.app/api/:path*"

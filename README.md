@@ -161,10 +161,12 @@ start command `npm start`. Add every server-only variable from `.env.example`
 to that service, then run `npm run prisma:migrate:production` once from its
 shell before launch.
 
-Build the console with `npm ci && npm run build` and publish `dist/`. Route the
-console's `/api/*` path to the Node service (or serve both from one same-origin
-service); the console intentionally calls `/api` relatively so Auth.js cookies
-remain same-origin. Set `NEXTAUTH_URL` to the console HTTPS URL and
+Build the console with `npm ci && npm run build` and publish `dist/`. The root
+`pxxl.toml` contains the Pxxl routing manifest: it proxies `/api/:path*` to the
+API before applying the SPA fallback. Keep the API destination in that file
+aligned with the deployed API origin whenever it changes. The console
+intentionally calls `/api` relatively so Auth.js cookies remain same-origin.
+Set `NEXTAUTH_URL` to the console HTTPS URL and
 `API_PUBLIC_ORIGIN` to the Node service HTTPS URL. Register
 `https://<console-domain>/api/auth/callback/github` in GitHub and point the
 Bachs webhook to the Node service's `/api/billing/webhook` endpoint.
