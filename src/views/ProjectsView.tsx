@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Plus, ChevronRight, ExternalLink, X, ArrowRight } from 'lucide-react';
 import { PageType, ProjectItem } from '../types';
 import { EmptyState } from '../components/common/EmptyState';
@@ -26,19 +26,51 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   const [newProjectUrl, setNewProjectUrl] = useState('');
   const [newProjectEnv, setNewProjectEnv] = useState<'Production' | 'Staging' | 'Preview'>('Production');
   const [createError, setCreateError] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
   const projectLimitReached = projectLimit !== null && projects.length >= projectLimit;
+
+  useEffect(() => {
+    if (!showModal) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !isCreating) setShowModal(false);
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [showModal, isCreating]);
+
+  const openCreateModal = () => {
+    setCreateError('');
+    setShowModal(true);
+  };
+
+  const closeCreateModal = () => {
+    if (!isCreating) setShowModal(false);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newProjectName.trim() || !newProjectUrl.trim()) return;
-    const created = await onCreateProject(newProjectName.trim(), newProjectEnv, newProjectUrl.trim());
-    if (created !== true) {
-      setCreateError(typeof created === 'string' ? created : 'The project could not be created.');
-      return;
+    if (isCreating || projectLimitReached || !newProjectName.trim() || !newProjectUrl.trim()) return;
+    setCreateError('');
+    setIsCreating(true);
+    try {
+      const created = await onCreateProject(newProjectName.trim(), newProjectEnv, newProjectUrl.trim());
+      if (created !== true) {
+        setCreateError(typeof created === 'string' ? created : 'The project could not be created.');
+        return;
+      }
+      setShowModal(false);
+      setNewProjectName('');
+      setNewProjectUrl('');
+    } catch (error) {
+      setCreateError(error instanceof Error ? error.message : 'The project could not be created.');
+    } finally {
+      setIsCreating(false);
     }
-    setShowModal(false);
-    setNewProjectName('');
-    setNewProjectUrl('');
   };
 
   return (
@@ -57,7 +89,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
         <button
           id="new-project-btn"
           type="button"
-          onClick={() => setShowModal(true)}
+          onClick={openCreateModal}
           className="self-start sm:self-auto flex items-center gap-1.5 px-3.5 py-2 text-xs font-mono bg-[#0B0B0B] text-[#F5F3EE] rounded-md hover:bg-[#0B0B0B]/85 transition-colors min-h-[36px]"
         >
           <Plus className="w-3.5 h-3.5" />
@@ -68,7 +100,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
       {/* Refined Data List (NOT giant cards) */}
       {projects.length === 0 ? (
         <EmptyState title="No projects yet" description="Connect your first application to begin monitoring responsive behavior."
-          actionLabel="New Project" onAction={() => setShowModal(true)} />
+          actionLabel="New Project" onAction={openCreateModal} />
       ) : <div className="border border-[#0B0B0B]/10 rounded-md overflow-hidden bg-[#F5F3EE]">
         <div className="overflow-x-auto max-w-full">
           <table className="w-full text-left text-sm border-collapse min-w-[700px]">
@@ -160,25 +192,32 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
 
       {/* New Project Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 safe-top safe-bottom">
+        <div className="modal-layer fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 safe-top safe-bottom">
           <div 
-            onClick={() => setShowModal(false)}
-            className="fixed inset-0 bg-[#0B0B0B]/40 transition-opacity" 
+            onClick={closeCreateModal}
+            aria-hidden="true"
+            className="modal-backdrop fixed inset-0 bg-[#0B0B0B]/40 transition-opacity"
           />
 
           <div 
             role="dialog"
             aria-modal="true"
-            aria-label="New Monitored Project"
-            className="relative w-full max-w-md bg-[#F5F3EE] border border-[#0B0B0B]/20 rounded-lg shadow-2xl p-5 sm:p-6 z-10 space-y-4 max-h-[92dvh] overflow-y-auto"
+            aria-labelledby="new-project-title"
+            aria-describedby="new-project-description"
+            aria-busy={isCreating}
+            className="modal-panel relative w-full max-w-md bg-[#F5F3EE] border border-[#0B0B0B]/20 rounded-lg shadow-2xl p-5 sm:p-6 z-10 space-y-4 max-h-[92dvh] overflow-y-auto"
           >
             <div className="flex items-center justify-between pb-3 border-b border-[#0B0B0B]/10">
-              <h3 className="text-base sm:text-lg font-semibold text-[#0B0B0B]">New Monitored Project</h3>
+              <div>
+                <h3 id="new-project-title" className="text-base sm:text-lg font-semibold text-[#0B0B0B]">New Monitored Project</h3>
+                <p id="new-project-description" className="mt-1 text-[11px] font-mono text-[#0B0B0B]/55">Connect a production URL to begin observing it.</p>
+              </div>
               <button 
                 type="button"
-                onClick={() => setShowModal(false)}
+                onClick={closeCreateModal}
                 aria-label="Close modal"
-                className="p-1.5 -mr-1 rounded text-[#0B0B0B]/40 hover:text-[#0B0B0B] min-w-[36px] min-h-[36px] flex items-center justify-center"
+                disabled={isCreating}
+                className="p-1.5 -mr-1 rounded text-[#0B0B0B]/40 hover:text-[#0B0B0B] disabled:opacity-40 min-w-[36px] min-h-[36px] flex items-center justify-center"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -203,6 +242,8 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
                   type="text"
                   required
                   placeholder="e.g. Customer Portal"
+                  autoFocus
+                  disabled={isCreating}
                   value={newProjectName}
                   onChange={(e) => setNewProjectName(e.target.value)}
                   className="w-full px-3 py-2 bg-[#F5F3EE] border border-[#0B0B0B]/20 rounded-md text-[#0B0B0B] focus:outline-none focus:border-[#0B0B0B] min-h-[38px] text-xs sm:text-xs"
@@ -217,6 +258,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
                   type="url"
                   required
                   placeholder="https://app.domain.com"
+                  disabled={isCreating}
                   value={newProjectUrl}
                   onChange={(e) => setNewProjectUrl(e.target.value)}
                   className="w-full px-3 py-2 bg-[#F5F3EE] border border-[#0B0B0B]/20 rounded-md text-[#0B0B0B] focus:outline-none focus:border-[#0B0B0B] min-h-[38px]"
@@ -229,6 +271,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
                 </label>
                 <CustomSelect
                   value={newProjectEnv}
+                  disabled={isCreating}
                   onChange={(next) => setNewProjectEnv(next as any)}
                   ariaLabel="Target environment"
                   className="w-full"
@@ -244,16 +287,19 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
               <div className="pt-2 flex flex-col sm:flex-row justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
-                  className="w-full sm:w-auto px-4 py-2 border border-[#0B0B0B]/20 rounded-md text-[#0B0B0B] hover:bg-[#0B0B0B]/5 min-h-[36px]"
+                  onClick={closeCreateModal}
+                  disabled={isCreating}
+                  className="w-full sm:w-auto px-4 py-2 border border-[#0B0B0B]/20 rounded-md text-[#0B0B0B] hover:bg-[#0B0B0B]/5 disabled:opacity-40 min-h-[36px]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="w-full sm:w-auto px-4 py-2 bg-[#0B0B0B] text-[#F5F3EE] rounded-md hover:bg-[#0B0B0B]/85 min-h-[36px]"
+                  disabled={isCreating}
+                  className="w-full sm:w-auto px-4 py-2 bg-[#0B0B0B] text-[#F5F3EE] rounded-md hover:bg-[#0B0B0B]/85 disabled:opacity-60 min-h-[36px] inline-flex items-center justify-center gap-2"
                 >
-                  Create Project
+                  {isCreating && <span className="h-3 w-3 rounded-full border-2 border-[#F5F3EE]/35 border-t-[#F5F3EE] animate-spin" aria-hidden="true" />}
+                  {isCreating ? 'Creating project…' : 'Create Project'}
                 </button>
               </div>
                 </>

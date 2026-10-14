@@ -14,6 +14,7 @@ interface CustomSelectProps {
   id?: string;
   className?: string;
   buttonClassName?: string;
+  disabled?: boolean;
 }
 
 export const CustomSelect: React.FC<CustomSelectProps> = ({
@@ -24,6 +25,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
   id,
   className = '',
   buttonClassName = '',
+  disabled = false,
 }) => {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -53,8 +55,9 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
         aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
+        disabled={disabled}
         onClick={() => setOpen((isOpen) => !isOpen)}
-        className={`flex items-center justify-between gap-2 min-h-[36px] px-2.5 py-1.5 rounded-md border border-[#0B0B0B]/20 bg-[#F5F3EE] text-xs font-mono text-[#0B0B0B] hover:bg-[#0B0B0B]/[0.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B0B0B]/25 ${buttonClassName}`}
+        className={`flex items-center justify-between gap-2 min-h-[36px] px-2.5 py-1.5 rounded-md border border-[#0B0B0B]/20 bg-[#F5F3EE] text-xs font-mono text-[#0B0B0B] hover:bg-[#0B0B0B]/[0.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B0B0B]/25 disabled:cursor-not-allowed disabled:opacity-50 ${buttonClassName}`}
       >
         <span className="truncate">{selected?.label ?? 'Select an option'}</span>
         <ChevronDown className={`w-3.5 h-3.5 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />

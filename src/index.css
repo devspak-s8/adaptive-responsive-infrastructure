@@ -112,6 +112,24 @@
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+@keyframes modal-backdrop-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-panel-enter {
+  from { opacity: 0; transform: translateY(12px) scale(.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.modal-backdrop {
+  animation: modal-backdrop-enter 180ms ease-out both;
+}
+
+.modal-panel {
+  animation: modal-panel-enter 260ms cubic-bezier(.22, 1, .36, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: .01ms !important;

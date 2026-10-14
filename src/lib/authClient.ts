@@ -36,7 +36,11 @@ const readError = async (response: Response, fallback: string): Promise<Error> =
 
 /** Auth.js endpoints are intentionally server-owned; no OAuth tokens enter the browser. */
 export const getAuthSession = async (): Promise<UserSession | null> => {
-  const response = await fetch('/api/auth/session', { credentials: 'include' });
+  const response = await fetch('/api/auth/session', {
+    credentials: 'include',
+    cache: 'no-store',
+    headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
+  });
   if (!response.ok) throw await readError(response, 'Authentication service is unavailable.');
   const payload = await readJsonBody<AuthSessionResponse>(response);
   // Auth.js returns a literal JSON null when there is no active session.
@@ -55,7 +59,11 @@ export const getAuthSession = async (): Promise<UserSession | null> => {
 
 export const signInWithGitHub = async (): Promise<void> => {
   const callbackUrl = `${window.location.origin}/overview`;
-  const csrfResponse = await fetch('/api/auth/csrf', { credentials: 'include' });
+  const csrfResponse = await fetch('/api/auth/csrf', {
+    credentials: 'include',
+    cache: 'no-store',
+    headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
+  });
   if (!csrfResponse.ok) throw await readError(csrfResponse, 'GitHub sign in is unavailable.');
   const csrfPayload = await readJsonBody<{ csrfToken?: string }>(csrfResponse);
   const csrfToken = csrfPayload?.csrfToken;
@@ -65,8 +73,11 @@ export const signInWithGitHub = async (): Promise<void> => {
   // exposing provider responses to fetch/CORS handling in the client.
   const form = document.createElement('form');
   form.method = 'POST';
-  form.action = '/api/auth/signin/github';
-  for (const [name, value] of Object.entries({ csrfToken, callbackUrl })) {
+  // Auth.js' canonical provider flow is POST /signin with the provider ID in
+  // the form body. Posting to /signin/github relies on path parsing and is
+  // fragile behind fetch-to-Express adapters and edge rewrites.
+  form.action = '/api/auth/signin';
+  for (const [name, value] of Object.entries({ csrfToken, callbackUrl, provider: 'github' })) {
     const input = document.createElement('input');
     input.type = 'hidden'; input.name = name; input.value = value;
     form.appendChild(input);
@@ -76,7 +87,11 @@ export const signInWithGitHub = async (): Promise<void> => {
 };
 
 export const signOut = async (): Promise<void> => {
-  const csrfResponse = await fetch('/api/auth/csrf', { credentials: 'include' });
+  const csrfResponse = await fetch('/api/auth/csrf', {
+    credentials: 'include',
+    cache: 'no-store',
+    headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
+  });
   if (!csrfResponse.ok) throw await readError(csrfResponse, 'Sign out failed.');
   const csrfPayload = await readJsonBody<{ csrfToken?: string }>(csrfResponse);
   const csrfToken = csrfPayload?.csrfToken;
