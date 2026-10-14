@@ -78,6 +78,16 @@
   animation: page-child-enter 420ms cubic-bezier(.22, 1, .36, 1) 45ms both;
 }
 
+.page-transition > * > * {
+  animation: page-child-enter 420ms cubic-bezier(.22, 1, .36, 1) both;
+}
+
+.page-transition > * > *:nth-child(1) { animation-delay: 70ms; }
+.page-transition > * > *:nth-child(2) { animation-delay: 115ms; }
+.page-transition > * > *:nth-child(3) { animation-delay: 160ms; }
+.page-transition > * > *:nth-child(4) { animation-delay: 205ms; }
+.page-transition > * > *:nth-child(5) { animation-delay: 250ms; }
+
 /* Direct view cards get a restrained lift and shadow so the dense console
    has depth without turning every nested control into a floating panel. */
 .page-transition > * > section[class*="border"],
