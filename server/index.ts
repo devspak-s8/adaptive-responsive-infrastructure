@@ -1,10 +1,16 @@
 import crypto from 'node:crypto';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import express, { type Request, type Response } from 'express';
 import { ExpressAuth, getSession, type ExpressAuthConfig } from '@auth/express';
 import GitHub from '@auth/express/providers/github';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import type { Adapter } from '@auth/core/adapters';
-import { Prisma, PrismaClient } from '@prisma/client';
+// Use the generated Worker-compatible client. The default `@prisma/client`
+// entrypoint is CommonJS and references `module`, which does not exist in a
+// Cloudflare Worker isolate. This client is generated with runtime = "workerd"
+// and engineType = "client".
+import { Prisma, PrismaClient } from './generated/prisma/client.js';
+import { PrismaPg } from '@prisma/adapter-pg';
 import {
   assertCanCreateProject,
   assertCanGenerateRecommendation,
@@ -49,11 +55,13 @@ const publicApiUrl = (() => {
 const authSecret = env('AUTH_SECRET', true);
 const githubId = env('GITHUB_ID', true);
 const githubSecret = env('GITHUB_SECRET', true);
-// The API uses Supabase's pooled connection. DIRECT_URL is reserved for
-// Prisma migrations and schema tooling, where a session/direct connection is
-// required.
+// Cloudflare supplies the pooled connection through Hyperdrive. In the local
+// Node runtime, the API uses Supabase's pooled connection. DIRECT_URL remains
+// reserved for Prisma migrations and schema tooling.
+const hyperdriveConnectionString = env('HYPERDRIVE_CONNECTION_STRING');
 const databaseUrl = (() => {
-  const value = env('DATABASE_URL', true);
+  const value = env('DATABASE_URL', !hyperdriveConnectionString);
+  if (!value) return '';
   // Supabase's transaction pooler (6543) uses PgBouncer. Prisma's prepared
   // statements are connection-scoped and can collide when PgBouncer moves a
   // transaction between connections, producing intermittent AdapterErrors.
@@ -62,7 +70,54 @@ const databaseUrl = (() => {
   if (!/:(6543)(?:\/|\?|$)/.test(value) || /(?:[?&])pgbouncer=/i.test(value)) return value;
   return `${value}${value.includes('?') ? '&' : '?'}pgbouncer=true`;
 })();
-const prisma = new PrismaClient({ datasourceUrl: databaseUrl });
+// The engine-less client always uses the pg driver adapter. Cloudflare's
+// Workers runtime must not reuse a module-level Prisma/pg pool across
+// requests: a pooled socket can belong to a previous invocation and leave a
+// later request pending forever. Node/Pxxl keeps one shared client, while the
+// Worker path gets a fresh client in the request middleware below.
+type PrismaClientInstance = InstanceType<typeof PrismaClient>;
+const workerRuntime = process.env.CLOUDFLARE_WORKERS === '1';
+const prismaStorage = new AsyncLocalStorage<PrismaClientInstance>();
+const createPrismaClient = (): PrismaClientInstance => new PrismaClient({
+  adapter: new PrismaPg({
+    connectionString: hyperdriveConnectionString || databaseUrl,
+    max: 1,
+    connectionTimeoutMillis: 10_000,
+    query_timeout: 15_000,
+    idleTimeoutMillis: 10_000,
+  }),
+});
+const sharedPrisma = workerRuntime ? null : createPrismaClient();
+const prisma = new Proxy({} as PrismaClientInstance, {
+  get(_target, property) {
+    const client = prismaStorage.getStore() ?? sharedPrisma;
+    if (!client) throw new Error('Database client is unavailable outside a Worker request.');
+    const value = Reflect.get(client, property, client);
+    return typeof value === 'function' ? value.bind(client) : value;
+  },
+});
+
+if (workerRuntime) {
+  app.use((_request, response, next) => {
+    const requestPrisma = createPrismaClient();
+    let disconnected = false;
+    const disconnect = () => {
+      if (disconnected) return;
+      disconnected = true;
+      void requestPrisma.$disconnect().catch((error) => {
+        console.warn('[database warning] request client disconnect failed', error instanceof Error ? error.name : 'UnknownError');
+      });
+    };
+    // `close` is emitted by some fetch/Express bridges when the response
+    // stream is handed back to the Worker, before the async route has
+    // finished. Disconnecting there can cancel a still-running Prisma query
+    // and surface as a generic 500 on otherwise healthy dashboard requests.
+    // `finish` is the completed-response signal; the driver's idle timeout
+    // covers an interrupted request without tearing down an active query.
+    response.once('finish', disconnect);
+    prismaStorage.run(requestPrisma, () => next());
+  });
+}
 
 const safeProjectUrl = (value: unknown): string | null => {
   if (typeof value !== 'string' || value.trim().length === 0 || value.trim().length > 2048) return null;
@@ -1143,26 +1198,27 @@ app.post('/api/runtime/analyze', runtimeCors, async (request, response) => {
 });
 
 app.get('/api/dashboard', async (request, response) => {
-  const user = await requireUser(request, response);
-  if (!user) return;
-  const projects = await prisma.project.findMany({ where: { ownerId: user.id }, orderBy: { createdAt: 'asc' } });
-  const selectedId = typeof request.query.projectId === 'string' ? request.query.projectId : projects[0]?.id;
-  const selected = projects.find((project: { id: string }) => project.id === selectedId) ?? projects[0];
-  const runtimeEvents = selected ? await prisma.runtimeEvent.findMany({
+  try {
+    const user = await requireUser(request, response);
+    if (!user) return;
+    const projects = await prisma.project.findMany({ where: { ownerId: user.id }, orderBy: { createdAt: 'asc' } });
+    const selectedId = typeof request.query.projectId === 'string' ? request.query.projectId : projects[0]?.id;
+    const selected = projects.find((project: { id: string }) => project.id === selectedId) ?? projects[0];
+    const runtimeEvents = selected ? await prisma.runtimeEvent.findMany({
     where: { projectId: selected.id, type: { in: ['heartbeat', 'layout_issue', 'adaptation', 'navigation'] } },
     orderBy: { createdAt: 'desc' },
     take: 250,
-  }) : [];
-  const issueRecords = selected ? await prisma.responsiveIssueRecord.findMany({
+    }) : [];
+    const issueRecords = selected ? await prisma.responsiveIssueRecord.findMany({
     where: { projectId: selected.id },
     orderBy: { lastSeenAt: 'desc' },
     take: 200,
-  }) : [];
-  const adaptationRecords = selected ? await prisma.runtimeAdaptation.findMany({
+    }) : [];
+    const adaptationRecords = selected ? await prisma.runtimeAdaptation.findMany({
     where: { projectId: selected.id },
     orderBy: { createdAt: 'desc' },
     take: 200,
-  }) : [];
+    }) : [];
   const latestAdaptationByIssue = new Map<string, typeof adaptationRecords[number]>();
   for (const adaptation of adaptationRecords) {
     if (adaptation.issueId && !latestAdaptationByIssue.has(adaptation.issueId)) latestAdaptationByIssue.set(adaptation.issueId, adaptation);
@@ -1250,7 +1306,7 @@ app.get('/api/dashboard', async (request, response) => {
       metadata: adaptation.verified ? 'Verified' : 'Monitoring',
     })),
   ].sort((a, b) => b.time.localeCompare(a.time)).slice(0, 100);
-  return response.json({
+    return response.json({
     projects: projects.map(projectResponse),
     viewports: viewportResponse,
     issues: issueResponse,
@@ -1270,7 +1326,12 @@ app.get('/api/dashboard', async (request, response) => {
       notifyAutofix: selected.notifyAutofix,
       protectionLevel: protectionLevelName(selected.protectionLevel),
     } : null,
-  });
+    });
+  } catch (error) {
+    const code = error instanceof Prisma.PrismaClientKnownRequestError ? error.code : '';
+    console.error('[dashboard error]', error instanceof Error ? error.name : 'UnknownError', code || 'UNCLASSIFIED');
+    return response.status(503).json({ error: 'Dashboard data is temporarily unavailable.', code: 'DASHBOARD_UNAVAILABLE' });
+  }
 });
 
 app.post('/api/projects', async (request, response) => {
@@ -1477,6 +1538,8 @@ app.use((error: unknown, _request: Request, response: Response, _next: unknown) 
 // Local development still starts a conventional listener through tsx-entry.mjs.
 export default app;
 
+// Cloudflare's httpServerHandler uses the Express listener internally; it
+// does not expose a normal public TCP listener from the Worker runtime.
 if (!process.env.VERCEL) {
   const port = Number(process.env.PORT || 3001);
   const server = app.listen(port);
@@ -1496,6 +1559,8 @@ if (!process.env.VERCEL) {
     server.close();
     await prisma.$disconnect();
   };
-  process.once('SIGINT', shutdown);
-  process.once('SIGTERM', shutdown);
+  if (!workerRuntime) {
+    process.once('SIGINT', shutdown);
+    process.once('SIGTERM', shutdown);
+  }
 }
