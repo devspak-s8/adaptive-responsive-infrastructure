@@ -35,6 +35,86 @@
   input, select, textarea, button {
     box-sizing: border-box;
   }
+
+  button, a, input, select, textarea {
+    transition-timing-function: cubic-bezier(.22, 1, .36, 1);
+  }
+
+  button:not(:disabled) {
+    transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+    transition-duration: 180ms;
+  }
+
+  button:not(:disabled):active {
+    transform: translateY(1px) scale(.985);
+  }
+
+  button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+    outline: 2px solid rgba(11, 11, 11, .72);
+    outline-offset: 3px;
+  }
+}
+
+/* Route-level motion keeps navigation feeling intentional without remounting
+   the surrounding console shell. Every view enters once when its route key
+   changes, while the reduced-motion rule below makes this fully accessible. */
+@keyframes page-enter {
+  from { opacity: 0; transform: translate3d(0, 12px, 0); filter: blur(2px); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); filter: blur(0); }
+}
+
+@keyframes page-child-enter {
+  from { opacity: 0; transform: translate3d(0, 8px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+.page-transition {
+  min-height: 100%;
+  animation: page-enter 360ms cubic-bezier(.22, 1, .36, 1) both;
+  will-change: opacity, transform;
+}
+
+.page-transition > * {
+  animation: page-child-enter 420ms cubic-bezier(.22, 1, .36, 1) 45ms both;
+}
+
+/* Direct view cards get a restrained lift and shadow so the dense console
+   has depth without turning every nested control into a floating panel. */
+.page-transition > * > section[class*="border"],
+.page-transition > * > div[class*="border"][class*="rounded"] {
+  transition: transform 220ms cubic-bezier(.22, 1, .36, 1), box-shadow 220ms ease, border-color 220ms ease;
+}
+
+.page-transition > * > section[class*="border"]:hover,
+.page-transition > * > div[class*="border"][class*="rounded"]:hover {
+  transform: translateY(-2px);
+  border-color: rgba(11, 11, 11, .2);
+  box-shadow: 0 12px 30px rgba(11, 11, 11, .07);
+}
+
+.motion-popover {
+  transform-origin: top center;
+  animation: popover-enter 160ms cubic-bezier(.22, 1, .36, 1) both;
+}
+
+@keyframes popover-enter {
+  from { opacity: 0; transform: translateY(-5px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+  }
+
+  button:not(:disabled):active,
+  .page-transition > * > section[class*="border"]:hover,
+  .page-transition > * > div[class*="border"][class*="rounded"]:hover {
+    transform: none;
+  }
 }
 
 /* Safe area inset helpers */

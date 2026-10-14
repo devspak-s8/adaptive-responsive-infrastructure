@@ -51,6 +51,12 @@ const pageFromLocation = () => routeByPath[window.location.pathname] ?? 'landing
 const publicPages = new Set<PageType>(['landing', 'pricing', 'docs', 'login', 'auth-error']);
 const privatePages = new Set<PageType>(['overview', 'projects', 'issues', 'autofix', 'viewport-lab', 'deployments', 'activity', 'settings', 'setup']);
 
+const PageTransition: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div className="page-transition" data-page-transition="true">
+    {children}
+  </div>
+);
+
 export default function App() {
   const [currentPage, setCurrentPage] = useState<PageType>(() => pageFromLocation());
   const [userSession, setUserSession] = useState<UserSession | null>(null);
@@ -233,23 +239,23 @@ export default function App() {
   };
 
   if (authLoading && !publicPages.has(currentPage)) return <LoadingState label="Checking your session" detail="Securing your workspace..." />;
-  if (!authLoading && !userSession && !publicPages.has(currentPage)) return <LoginView onNavigate={navigate} onSignIn={signInWithGitHub} loading={authLoading} error={authError} />;
+  if (!authLoading && !userSession && !publicPages.has(currentPage)) return <PageTransition key={currentPage}><LoginView onNavigate={navigate} onSignIn={signInWithGitHub} loading={authLoading} error={authError} /></PageTransition>;
   if (isSigningOut) return <LoadingState label="Signing you out" detail="Closing your secure session..." />;
 
   if (currentPage === 'landing') {
-    return <LandingView onNavigate={navigate} userSession={userSession} />;
+    return <PageTransition key={currentPage}><LandingView onNavigate={navigate} userSession={userSession} /></PageTransition>;
   }
   if (currentPage === 'pricing' && !userSession) {
-    return <PricingView onNavigate={navigate} userSession={userSession} />;
+    return <PageTransition key={currentPage}><PricingView onNavigate={navigate} userSession={userSession} /></PageTransition>;
   }
   if (currentPage === 'docs') {
-    return <DocsView onNavigate={navigate} userSession={userSession} />;
+    return <PageTransition key={currentPage}><DocsView onNavigate={navigate} userSession={userSession} /></PageTransition>;
   }
   if (currentPage === 'login') {
-    return <LoginView onNavigate={navigate} onSignIn={signInWithGitHub} loading={authLoading} error={authError} />;
+    return <PageTransition key={currentPage}><LoginView onNavigate={navigate} onSignIn={signInWithGitHub} loading={authLoading} error={authError} /></PageTransition>;
   }
   if (currentPage === 'auth-error') {
-    return <AuthErrorView onNavigate={navigate} />;
+    return <PageTransition key={currentPage}><AuthErrorView onNavigate={navigate} /></PageTransition>;
   }
 
   return (
@@ -264,6 +270,7 @@ export default function App() {
         <Header currentPage={currentPage} currentProject={currentProject} projects={projects}
           onSelectProject={(project) => { setCurrentProject(project); void loadData(project.id); }} onNavigate={navigate} onOpenMobileNav={() => setIsMobileNavOpen(true)} />
         <main className="flex-1 p-3.5 sm:p-6 md:p-8 lg:p-10 min-w-0 max-w-full safe-bottom">
+          <PageTransition key={`${currentPage}:${currentProject?.id ?? 'none'}`}>
           {dataLoading ? <LoadingState /> : dataError ? <ErrorState message={dataError} onRetry={() => void loadData(currentProject?.id)} /> : <>
             {currentPage === 'overview' && <OverviewView project={currentProject} viewports={viewports} issues={issues}
               autofixCount={autofixes.length} autofixes={autofixes} onNavigate={navigate} onCreateProject={handleCreateProject} onSelectIssue={setSelectedIssue}
@@ -297,6 +304,7 @@ export default function App() {
             {currentPage === 'viewport-lab' && <ViewportLabView onSelectIssue={setSelectedIssue} activeIssues={issues} autofixActive={autofixActive} />}
             {currentPage === 'pricing' && <ConsolePricingView currentPlan={currentPlan} onNavigate={navigate} />}
           </>}
+          </PageTransition>
         </main>
       </div>
       <IssueDetailPanel issue={selectedIssue} onClose={() => setSelectedIssue(null)}

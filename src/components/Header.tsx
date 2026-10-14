@@ -65,7 +65,7 @@ export const Header: React.FC<HeaderProps> = ({
             <ChevronDown className={`w-3.5 h-3.5 flex-shrink-0 transition-transform ${isProjectMenuOpen ? 'rotate-180' : ''}`} />
           </button>
           {isProjectMenuOpen && (
-            <div role="listbox" aria-label="Projects" className="absolute left-0 top-[calc(100%+6px)] z-40 w-[min(280px,calc(100vw-2rem))] overflow-hidden rounded-lg border border-[#0B0B0B]/15 bg-[#fffdf8] p-1.5 shadow-[0_18px_45px_rgba(11,11,11,0.18)]">
+            <div role="listbox" aria-label="Projects" className="motion-popover absolute left-0 top-[calc(100%+6px)] z-40 w-[min(280px,calc(100vw-2rem))] overflow-hidden rounded-lg border border-[#0B0B0B]/15 bg-[#fffdf8] p-1.5 shadow-[0_18px_45px_rgba(11,11,11,0.18)]">
               <div className="px-2.5 py-1.5 text-[10px] font-mono uppercase tracking-wider text-[#0B0B0B]/45">Active project</div>
               {projects.map((project) => {
                 const isActive = project.id === activeProject?.id;

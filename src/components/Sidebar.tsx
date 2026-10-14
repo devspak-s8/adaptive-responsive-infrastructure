@@ -199,7 +199,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-[#F5F3EE]/45 transition-transform ${isProjectMenuOpen ? 'rotate-180' : ''}`} />
               </button>
               {isProjectMenuOpen && (
-                <div role="listbox" aria-label="Projects" className="absolute left-3 right-3 top-[calc(100%-2px)] z-50 mt-2 max-h-64 overflow-y-auto rounded-lg border border-[#F5F3EE]/15 bg-[#151515] p-1.5 shadow-2xl">
+                <div role="listbox" aria-label="Projects" className="motion-popover absolute left-3 right-3 top-[calc(100%-2px)] z-50 mt-2 max-h-64 overflow-y-auto rounded-lg border border-[#F5F3EE]/15 bg-[#151515] p-1.5 shadow-2xl">
                   <div className="px-2.5 py-1.5 text-[10px] font-mono uppercase tracking-wider text-[#F5F3EE]/40">Switch project</div>
                   {projects.map((project) => {
                     const isActive = project.id === currentProject?.id;

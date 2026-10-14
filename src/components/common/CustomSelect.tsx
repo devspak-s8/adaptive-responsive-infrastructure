@@ -60,7 +60,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
         <ChevronDown className={`w-3.5 h-3.5 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div role="listbox" aria-label={ariaLabel} className="absolute left-0 top-[calc(100%+6px)] z-50 min-w-full w-max max-w-[min(320px,calc(100vw-2rem))] overflow-hidden rounded-lg border border-[#0B0B0B]/15 bg-[#fffdf8] p-1.5 shadow-[0_18px_45px_rgba(11,11,11,0.18)]">
+        <div role="listbox" aria-label={ariaLabel} className="motion-popover absolute left-0 top-[calc(100%+6px)] z-50 min-w-full w-max max-w-[min(320px,calc(100vw-2rem))] overflow-hidden rounded-lg border border-[#0B0B0B]/15 bg-[#fffdf8] p-1.5 shadow-[0_18px_45px_rgba(11,11,11,0.18)]">
           {options.map((option) => {
             const isSelected = option.value === value;
             return (
