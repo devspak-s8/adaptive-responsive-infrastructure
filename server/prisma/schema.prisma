@@ -107,6 +107,9 @@ model Project {
   notifyAutofix Boolean @default(false)
   protectionLevel String @default("safe")
   runtimeKey     String?  @unique
+  // Replays of a console create request return the original project instead
+  // of creating another row. The key is scoped with the owner ID.
+  creationIdempotencyKey String? @unique
   lastHeartbeatAt DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

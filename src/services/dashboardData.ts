@@ -32,8 +32,22 @@ const api = async <T>(path: string, init?: RequestInit): Promise<T> => {
 export const fetchDashboardData = (projectId?: string): Promise<DashboardData> =>
   api<DashboardData>(`/api/dashboard${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`);
 
-export const createProject = (name: string, environment: ProjectItem['environment'], url: string): Promise<ProjectItem> =>
-  api<ProjectItem>('/api/projects', { method: 'POST', body: JSON.stringify({ name, environment, url }) });
+const newIdempotencyKey = (): string => {
+  if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID();
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+};
+
+export const createProject = (
+  name: string,
+  environment: ProjectItem['environment'],
+  url: string,
+  idempotencyKey = newIdempotencyKey(),
+): Promise<ProjectItem> =>
+  api<ProjectItem>('/api/projects', {
+    method: 'POST',
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify({ name, environment, url }),
+  });
 
 export const updateIssueStatus = (issueId: string, status: ResponsiveIssue['status']): Promise<void> =>
   api<void>(`/api/issues/${encodeURIComponent(issueId)}`, { method: 'PATCH', body: JSON.stringify({ status }) });

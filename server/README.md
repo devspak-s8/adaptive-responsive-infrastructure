@@ -73,4 +73,10 @@ event attributes, and oversized snapshots before storage.
 
 ## Authorization
 
+Project creation requires an `Idempotency-Key` request header. The API scopes
+that key to the authenticated user and returns the original project for safe
+retries. Project counting and insertion run in one serializable transaction, so
+concurrent requests cannot bypass the Free plan's two-project limit. Reusing a
+key with different project data is rejected with `IDEMPOTENCY_KEY_REUSED`.
+
 Every project and issue route must authenticate the request, verify resource ownership, load the user’s effective subscription, then call the shared functions in `server/entitlements.ts`. Return typed errors such as `PLAN_PROJECT_LIMIT_REACHED` and `FEATURE_NOT_AVAILABLE`; frontend gates are only explanatory UX.

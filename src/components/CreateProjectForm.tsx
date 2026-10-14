@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { CustomSelect } from './common/CustomSelect';
 
 export type ProjectEnvironment = 'Production' | 'Staging' | 'Preview';
 
 interface CreateProjectFormProps {
-  onSubmit: (name: string, environment: ProjectEnvironment, url: string) => Promise<boolean | string> | boolean | string;
+  onSubmit: (name: string, environment: ProjectEnvironment, url: string, idempotencyKey?: string) => Promise<boolean | string> | boolean | string;
   onCancel?: () => void;
   submitLabel?: string;
 }
@@ -19,22 +19,32 @@ export const CreateProjectForm: React.FC<CreateProjectFormProps> = ({
   const [environment, setEnvironment] = useState<ProjectEnvironment>('Production');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitLock = useRef(false);
+  const idempotencyKeyRef = useRef<string | null>(null);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (submitLock.current || isSubmitting) return;
     setError('');
+    submitLock.current = true;
+    const idempotencyKey = idempotencyKeyRef.current ?? (typeof globalThis.crypto?.randomUUID === 'function'
+      ? globalThis.crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
+    idempotencyKeyRef.current = idempotencyKey;
     setIsSubmitting(true);
 
     try {
-      const result = await onSubmit(name.trim(), environment, url.trim());
+      const result = await onSubmit(name.trim(), environment, url.trim(), idempotencyKey);
       if (result !== true) {
         setError(typeof result === 'string' ? result : 'The project could not be created.');
         return;
       }
+      idempotencyKeyRef.current = null;
       onCancel?.();
     } catch (submissionError) {
       setError(submissionError instanceof Error ? submissionError.message : 'The project could not be created.');
     } finally {
+      submitLock.current = false;
       setIsSubmitting(false);
     }
   };

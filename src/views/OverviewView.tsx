@@ -11,7 +11,7 @@ interface OverviewViewProps {
   autofixCount: number;
   autofixes: AutofixRecord[];
   onNavigate: (page: PageType) => void;
-  onCreateProject: (name: string, environment: ProjectItem['environment'], url: string) => Promise<boolean | string> | boolean | string;
+  onCreateProject: (name: string, environment: ProjectItem['environment'], url: string, idempotencyKey?: string) => Promise<boolean | string> | boolean | string;
   onSelectIssue: (issue: ResponsiveIssue) => void;
   onSelectViewportInLab: (viewport: string) => void;
 }

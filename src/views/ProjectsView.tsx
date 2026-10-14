@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Plus, ChevronRight, ExternalLink, X, ArrowRight } from 'lucide-react';
 import { PageType, ProjectItem } from '../types';
 import { EmptyState } from '../components/common/EmptyState';
@@ -8,7 +8,7 @@ interface ProjectsViewProps {
   projects: ProjectItem[];
   currentProjectId: string | null;
   onSelectProject: (p: ProjectItem) => void;
-  onCreateProject: (name: string, env: 'Production' | 'Staging' | 'Preview', url: string) => Promise<boolean | string> | boolean | string;
+  onCreateProject: (name: string, env: 'Production' | 'Staging' | 'Preview', url: string, idempotencyKey?: string) => Promise<boolean | string> | boolean | string;
   onNavigate: (page: PageType) => void;
   projectLimit: number | null;
 }
@@ -27,6 +27,10 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   const [newProjectEnv, setNewProjectEnv] = useState<'Production' | 'Staging' | 'Preview'>('Production');
   const [createError, setCreateError] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  // State updates are asynchronous. This synchronous lock closes the small
+  // window where two submit events can fire before React rerenders.
+  const createLock = useRef(false);
+  const idempotencyKeyRef = useRef<string | null>(null);
   const projectLimitReached = projectLimit !== null && projects.length >= projectLimit;
 
   useEffect(() => {
@@ -54,11 +58,16 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isCreating || projectLimitReached || !newProjectName.trim() || !newProjectUrl.trim()) return;
+    if (createLock.current || isCreating || projectLimitReached || !newProjectName.trim() || !newProjectUrl.trim()) return;
     setCreateError('');
+    createLock.current = true;
+    const idempotencyKey = idempotencyKeyRef.current ?? (typeof globalThis.crypto?.randomUUID === 'function'
+      ? globalThis.crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
+    idempotencyKeyRef.current = idempotencyKey;
     setIsCreating(true);
     try {
-      const created = await onCreateProject(newProjectName.trim(), newProjectEnv, newProjectUrl.trim());
+      const created = await onCreateProject(newProjectName.trim(), newProjectEnv, newProjectUrl.trim(), idempotencyKey);
       if (created !== true) {
         setCreateError(typeof created === 'string' ? created : 'The project could not be created.');
         return;
@@ -66,9 +75,11 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
       setShowModal(false);
       setNewProjectName('');
       setNewProjectUrl('');
+      idempotencyKeyRef.current = null;
     } catch (error) {
       setCreateError(error instanceof Error ? error.message : 'The project could not be created.');
     } finally {
+      createLock.current = false;
       setIsCreating(false);
     }
   };

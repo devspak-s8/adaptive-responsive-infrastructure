@@ -216,10 +216,10 @@ export default function App() {
     }
   };
 
-  const handleCreateProject = async (name: string, environment: ProjectItem['environment'], url: string) => {
+  const handleCreateProject = async (name: string, environment: ProjectItem['environment'], url: string, idempotencyKey?: string) => {
     if (!userSession) return false;
     try {
-      const project = await createProject(name, environment, url);
+      const project = await createProject(name, environment, url, idempotencyKey);
       await loadData(project.id);
       navigate('overview');
       return true;

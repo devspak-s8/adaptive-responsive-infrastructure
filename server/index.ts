@@ -154,6 +154,18 @@ const safeBillingUrl = (value: unknown): string | null => {
   }
 };
 
+const normalizeIdempotencyKey = (value: string | undefined): string | null => {
+  const key = value?.trim() ?? '';
+  // Keep keys predictable and bounded before they are scoped into the unique
+  // Project column. UUIDs, SDK-generated keys, and normal retry tokens all
+  // fit this character set.
+  if (!key || key.length > 128 || !/^[A-Za-z0-9._:-]+$/.test(key)) return null;
+  return key;
+};
+
+const prismaErrorCode = (error: unknown): string =>
+  error instanceof Error && 'code' in error ? String((error as { code: unknown }).code) : '';
+
 const isMissingSession = (error: unknown): boolean =>
   error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025';
 
@@ -1338,26 +1350,86 @@ app.post('/api/projects', async (request, response) => {
   const user = await requireUser(request, response);
   if (!user) return;
   try {
+    const rawIdempotencyKey = request.header('Idempotency-Key');
+    if (!rawIdempotencyKey?.trim()) {
+      return response.status(400).json({ error: 'An Idempotency-Key header is required.', code: 'IDEMPOTENCY_KEY_REQUIRED' });
+    }
+    const idempotencyKey = normalizeIdempotencyKey(rawIdempotencyKey);
+    if (!idempotencyKey) {
+      return response.status(400).json({ error: 'The Idempotency-Key is invalid.', code: 'IDEMPOTENCY_KEY_INVALID' });
+    }
     const name = typeof request.body?.name === 'string' ? request.body.name.trim() : '';
     const url = safeProjectUrl(request.body?.url);
     if (!name || !url) return response.status(400).json({ error: 'Project name and URL are required.' });
     if (name.length > 120) return response.status(400).json({ error: 'Project name must be 120 characters or fewer.' });
-    const subscription = await currentSubscription(user.id);
-    const entitlements = entitlementsFor(subscription);
-    const count = await prisma.project.count({ where: { ownerId: user.id } });
-    assertCanCreateProject(entitlements, count);
-    const project = await prisma.project.create({
-      data: {
-        ownerId: user.id,
-        name,
-        productionUrl: url,
-        environment: environmentName(request.body?.environment),
-        runtimeKey: createRuntimeKey(),
-      },
+    const scopedIdempotencyKey = `${user.id}:${idempotencyKey}`;
+    const existing = await prisma.project.findUnique({ where: { creationIdempotencyKey: scopedIdempotencyKey } });
+    const requestedEnvironment = environmentName(request.body?.environment);
+    if (existing) {
+      // An idempotency key represents one logical request. Do not let a caller
+      // reuse it to make a different project appear to have succeeded.
+      if (existing.name !== name || existing.productionUrl !== url || existing.environment !== requestedEnvironment) {
+        return response.status(409).json({
+          error: 'This Idempotency-Key was already used for a different project request.',
+          code: 'IDEMPOTENCY_KEY_REUSED',
+        });
+      }
+      return response.status(200).json(projectResponse(existing));
+    }
+
+    // Count and create must share a serializable transaction. A count followed
+    // by a standalone create lets two simultaneous requests both pass a Free
+    // plan's limit. The unique idempotency key makes retries return the same
+    // project, while serializable isolation closes the concurrent-create gap.
+    const createWithinLimit = () => prisma.$transaction(async (tx) => {
+      const subscription = await tx.subscription.findUnique({ where: { userId: user.id } });
+      const entitlements = entitlementsFor(subscription ?? { plan: 'FREE', status: 'ACTIVE' });
+      const count = await tx.project.count({ where: { ownerId: user.id } });
+      assertCanCreateProject(entitlements, count);
+      return tx.project.create({
+        data: {
+          ownerId: user.id,
+          name,
+          productionUrl: url,
+          environment: requestedEnvironment,
+          runtimeKey: createRuntimeKey(),
+          creationIdempotencyKey: scopedIdempotencyKey,
+        },
+      });
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      maxWait: 10_000,
+      timeout: 15_000,
     });
-    return response.status(201).json(projectResponse(project));
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const project = await createWithinLimit();
+        return response.status(201).json(projectResponse(project));
+      } catch (error) {
+        const code = prismaErrorCode(error);
+        if (code === 'P2002') {
+          const replay = await prisma.project.findUnique({ where: { creationIdempotencyKey: scopedIdempotencyKey } });
+          if (replay) {
+            if (replay.name !== name || replay.productionUrl !== url || replay.environment !== requestedEnvironment) {
+              return response.status(409).json({
+                error: 'This Idempotency-Key was already used for a different project request.',
+                code: 'IDEMPOTENCY_KEY_REUSED',
+              });
+            }
+            return response.status(200).json(projectResponse(replay));
+          }
+        }
+        if (code === 'P2034' && attempt === 0) continue;
+        if (code === 'P2034') {
+          return response.status(409).json({ error: 'The project request conflicted with another create. Please retry.', code: 'PROJECT_CREATE_CONFLICT' });
+        }
+        throw error;
+      }
+    }
+    return response.status(409).json({ error: 'The project request conflicted with another create. Please retry.', code: 'PROJECT_CREATE_CONFLICT' });
   } catch (error) {
-    const code = error instanceof Error && 'code' in error ? String((error as { code: string }).code) : '';
+    const code = prismaErrorCode(error);
     if (code === 'PLAN_PROJECT_LIMIT_REACHED') return response.status(403).json({ error: 'Please upgrade your plan to add more projects.', code });
     return response.status(500).json({ error: errorMessage(error) });
   }
