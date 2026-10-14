@@ -38,6 +38,9 @@ assert(server.includes('safeBillingUrl'), 'Billing redirect URLs are not scheme 
 assert(server.includes('verifyBachsWebhook'), 'Billing webhook signature verification is missing.');
 assert(server.includes('BACHS_WEBHOOK_SECRET'), 'Billing webhook secret is missing.');
 assert(server.includes('runtimeVisualSnapshot'), 'Runtime visual evidence validation is missing.');
+assert(server.includes('IDEMPOTENCY_KEY_REQUIRED') && server.includes('TransactionIsolationLevel.Serializable'), 'Project and usage mutations must use idempotent serializable transactions.');
+assert(server.includes('reserveRecommendationUsage'), 'AI recommendation usage must be reserved atomically.');
+assert(server.includes('updateMany({') && server.includes('runtimeKey: null'), 'Runtime-key provisioning must be race-safe.');
 
 const sourceSecretPattern = /AUTH_SECRET|GITHUB_SECRET|DATABASE_URL|DIRECT_URL|BACHS_API_KEY|GOOGLE_AI_API_KEY/;
 const sourceExtensions = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json', '.css', '.html']);

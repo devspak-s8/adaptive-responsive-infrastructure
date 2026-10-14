@@ -817,35 +817,73 @@ const parseAIJson = (content: string | null): unknown => {
 };
 
 const touchRuntimeSession = async (project: { id: string; ownerId: string }, sessionId: string): Promise<void> => {
-  const existing = await prisma.runtimeSession.findUnique({ where: { projectId_sessionId: { projectId: project.id, sessionId } } });
-  const now = new Date();
-  if (existing) {
-    await prisma.runtimeSession.update({
-      where: { projectId_sessionId: { projectId: project.id, sessionId } },
-      data: { lastSeenAt: now },
-    });
-    return;
-  }
-
-  const subscription = await currentSubscription(project.ownerId);
-  const entitlements = entitlementsFor(subscription);
   const periodStart = startOfUsagePeriod();
-  const usage = await prisma.usagePeriod.findUnique({ where: { userId_periodStart: { userId: project.ownerId, periodStart } } });
-  assertUsageAvailable(entitlements, usage?.monitoredSessions ?? 0);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const now = new Date();
+    try {
+      await prisma.$transaction(async (tx) => {
+        // Read, create, and quota increment are one serializable unit. This
+        // prevents two new sessions from both passing the same last-slot
+        // check, while a repeated heartbeat for an existing session remains
+        // free and only refreshes its timestamp.
+        const existing = await tx.runtimeSession.findUnique({
+          where: { projectId_sessionId: { projectId: project.id, sessionId } },
+        });
+        if (existing) {
+          await tx.runtimeSession.update({
+            where: { projectId_sessionId: { projectId: project.id, sessionId } },
+            data: { lastSeenAt: now },
+          });
+          return;
+        }
 
-  try {
-    await prisma.$transaction([
-      prisma.runtimeSession.create({ data: { projectId: project.id, sessionId, firstSeenAt: now, lastSeenAt: now } }),
-      prisma.usagePeriod.upsert({
-        where: { userId_periodStart: { userId: project.ownerId, periodStart } },
-        create: { userId: project.ownerId, periodStart, periodEnd: endOfUsagePeriod(periodStart), monitoredSessions: 1 },
-        update: { monitoredSessions: { increment: 1 } },
-      }),
-    ]);
-  } catch (error) {
-    // Two tabs can start the same session at once. The unique composite key
-    // makes the second request harmless; it must not turn into a 500.
-    if ((error as { code?: string }).code !== 'P2002') throw error;
+        const subscription = await tx.subscription.findUnique({ where: { userId: project.ownerId } });
+        const entitlements = entitlementsFor(subscription ?? { plan: 'FREE', status: 'ACTIVE' });
+        const usage = await tx.usagePeriod.findUnique({ where: { userId_periodStart: { userId: project.ownerId, periodStart } } });
+        assertUsageAvailable(entitlements, usage?.monitoredSessions ?? 0);
+        await tx.runtimeSession.create({ data: { projectId: project.id, sessionId, firstSeenAt: now, lastSeenAt: now } });
+        await tx.usagePeriod.upsert({
+          where: { userId_periodStart: { userId: project.ownerId, periodStart } },
+          create: { userId: project.ownerId, periodStart, periodEnd: endOfUsagePeriod(periodStart), monitoredSessions: 1 },
+          update: { monitoredSessions: { increment: 1 } },
+        });
+      }, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        maxWait: 10_000,
+        timeout: 15_000,
+      });
+      return;
+    } catch (error) {
+      // Concurrent new sessions can produce a serialization/unique conflict.
+      // Retry once so the winner is observed and the limit is evaluated again.
+      const code = prismaErrorCode(error);
+      if ((code === 'P2034' || code === 'P2002') && attempt === 0) continue;
+      throw error;
+    }
+  }
+};
+
+const reserveRecommendationUsage = async (userId: string, entitlements: ReturnType<typeof entitlementsFor>, periodStart: Date): Promise<void> => {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      await prisma.$transaction(async (tx) => {
+        const usage = await tx.usagePeriod.findUnique({ where: { userId_periodStart: { userId, periodStart } } });
+        assertCanGenerateRecommendation(entitlements, usage?.codeRecommendationsGenerated ?? 0);
+        await tx.usagePeriod.upsert({
+          where: { userId_periodStart: { userId, periodStart } },
+          create: { userId, periodStart, periodEnd: endOfUsagePeriod(periodStart), codeRecommendationsGenerated: 1 },
+          update: { codeRecommendationsGenerated: { increment: 1 } },
+        });
+      }, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        maxWait: 10_000,
+        timeout: 15_000,
+      });
+      return;
+    } catch (error) {
+      if ((prismaErrorCode(error) === 'P2034' || prismaErrorCode(error) === 'P2002') && attempt === 0) continue;
+      throw error;
+    }
   }
 };
 
@@ -926,12 +964,6 @@ app.post('/api/billing/webhook', express.raw({ type: 'application/json', limit: 
 
   const providerEventId = findString(event, ['id', 'event_id']);
   if (!providerEventId) return response.status(400).json({ error: 'Webhook event id is required.' });
-  try {
-    await prisma.processedWebhookEvent.create({ data: { providerEventId } });
-  } catch (error) {
-    if ((error as { code?: string }).code === 'P2002') return response.json({ received: true, duplicate: true });
-    throw error;
-  }
 
   const eventType = findString(event, ['type', 'event_type']) ?? '';
   const data = (event.data && typeof event.data === 'object' ? event.data : {}) as Record<string, unknown>;
@@ -995,6 +1027,15 @@ app.post('/api/billing/webhook', express.raw({ type: 'application/json', limit: 
       },
     });
   }
+  // Mark the event only after the subscription mutation succeeds. If the
+  // database is briefly unavailable, the provider can retry and the event is
+  // not incorrectly treated as already handled.
+  try {
+    await prisma.processedWebhookEvent.create({ data: { providerEventId } });
+  } catch (error) {
+    if ((error as { code?: string }).code === 'P2002') return response.json({ received: true, duplicate: true });
+    throw error;
+  }
   return response.json({ received: true });
 });
 
@@ -1023,10 +1064,20 @@ app.get('/api/projects/:id/runtime-key', async (request, response) => {
   if (!user) return;
   const project = await prisma.project.findFirst({ where: { id: request.params.id, ownerId: user.id } });
   if (!project) return response.status(404).json({ error: 'Project not found.' });
-  const runtimeKey = project.runtimeKey ?? createRuntimeKey();
-  if (!project.runtimeKey) {
-    await prisma.project.update({ where: { id: project.id }, data: { runtimeKey } });
+  let runtimeKey = project.runtimeKey;
+  if (!runtimeKey) {
+    const candidate = createRuntimeKey();
+    // Claim the empty slot conditionally. If another Setup request wins the
+    // race, read and return its key instead of handing the browser a stale key
+    // that no longer matches the project row.
+    const claimed = await prisma.project.updateMany({
+      where: { id: project.id, ownerId: user.id, runtimeKey: null },
+      data: { runtimeKey: candidate },
+    });
+    if (claimed.count === 1) runtimeKey = candidate;
+    else runtimeKey = (await prisma.project.findUnique({ where: { id: project.id }, select: { runtimeKey: true } }))?.runtimeKey ?? null;
   }
+  if (!runtimeKey) return response.status(503).json({ error: 'The runtime key could not be provisioned.', code: 'RUNTIME_KEY_UNAVAILABLE' });
   return response.json({ projectId: project.id, runtimeKey, apiBaseUrl: publicApiUrl.toString().replace(/\/+$/, ''), lastHeartbeatAt: project.lastHeartbeatAt });
 });
 
@@ -1148,8 +1199,6 @@ app.post('/api/runtime/analyze', runtimeCors, async (request, response) => {
     const subscription = await currentSubscription(project.ownerId);
     const entitlements = entitlementsFor(subscription);
     const periodStart = startOfUsagePeriod();
-    const usage = await prisma.usagePeriod.findUnique({ where: { userId_periodStart: { userId: project.ownerId, periodStart } } });
-    assertCanGenerateRecommendation(entitlements, usage?.codeRecommendationsGenerated ?? 0);
 
     const {
       visualSnapshot: currentVisualSnapshot,
@@ -1169,6 +1218,11 @@ app.post('/api/runtime/analyze', runtimeCors, async (request, response) => {
         .map((image) => googleImagePart(image.image))
         .filter((part): part is Record<string, unknown> => Boolean(part)),
     ];
+    // Reserve the recommendation atomically before calling the provider. This
+    // closes the concurrent-request gap where several analyses could all pass
+    // a read-only quota check. A provider failure still counts as an attempted
+    // recommendation, which is safer than allowing unlimited retries.
+    await reserveRecommendationUsage(project.ownerId, entitlements, periodStart);
     const aiResponse = await fetch(`${googleAiBaseUrl()}/models/${encodeURIComponent(googleAiModel())}:generateContent?key=${encodeURIComponent(apiKey)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1196,11 +1250,6 @@ app.post('/api/runtime/analyze', runtimeCors, async (request, response) => {
         },
       })));
     }
-    await prisma.usagePeriod.upsert({
-      where: { userId_periodStart: { userId: project.ownerId, periodStart } },
-      create: { userId: project.ownerId, periodStart, periodEnd: endOfUsagePeriod(periodStart), codeRecommendationsGenerated: 1 },
-      update: { codeRecommendationsGenerated: { increment: 1 } },
-    });
     return response.json({ enabled: true, decision, adaptation, strategy, issueId: persistedIssues[0]?.id ?? null, issueIds });
   } catch (error) {
     const code = error instanceof Error && 'code' in error ? String((error as { code: string }).code) : '';
