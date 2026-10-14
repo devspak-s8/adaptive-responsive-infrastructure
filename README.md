@@ -171,6 +171,38 @@ Set `NEXTAUTH_URL` to the console HTTPS URL and
 `https://<console-domain>/api/auth/callback/github` in GitHub and point the
 Bachs webhook to the Node service's `/api/billing/webhook` endpoint.
 
+### Deploying the console and API on Cloudflare
+
+Cloudflare is now the recommended deployment target for this repository. Use
+the single Worker configuration in [`wrangler.jsonc`](./wrangler.jsonc) and
+follow [`CLOUDFLARE.md`](./CLOUDFLARE.md). It serves the Vite console from
+Workers Assets and runs the existing Express API through Cloudflare's
+`httpServerHandler`, with Supabase PostgreSQL reached through a Hyperdrive
+binding. This keeps `/api` and the Auth.js cookie on one origin.
+
+For Hyperdrive, paste Supabase's **Direct connection** URI into the
+Hyperdrive configuration. Hyperdrive already pools connections; do not chain
+Supabase's transaction pooler behind it. For local Prisma migrations, use the
+Direct URI when IPv6 is available, or the Session pooler URI on port `5432` if
+the machine is IPv4-only.
+
+The short version is:
+
+```bash
+npx wrangler login
+# create Hyperdrive and put its ID in wrangler.jsonc
+cd server
+npm run prisma:migrate:production
+cd ..
+npm run cloudflare:deploy
+```
+
+Add the secrets listed in `CLOUDFLARE.md` in the Worker settings before
+testing GitHub sign-in, Bachs webhooks, or customer runtime traffic. The
+temporary `workers.dev` hostname is enough to test; connect a custom domain
+only after `/api/health` returns JSON and the console loads from that same
+hostname.
+
 ## Runtime behavior
 
 The browser runtime records heartbeats and bounded events for viewport, route, DOM, CSSOM, overflow, wrapping, clipping, collisions, and layout mutations. Deterministic checks identify a new anomaly. When `GOOGLE_AI_API_KEY` is configured, the API sends bounded layout context to Gemini, validates the returned strategy against an allowlist, and returns at most one scoped adaptation. The runtime verifies the result immediately and rolls it back if the layout gets worse. Changes apply only to that visitor's session.

@@ -24,6 +24,9 @@
     "check:adapters": "npm.cmd run check:next && npm.cmd run check:vue && npm.cmd run check:svelte && npm.cmd run check:angular && npm.cmd run check:browser",
     "build:adapters": "npm.cmd run clean:adapters && npm.cmd run build:runtime && npm.cmd run build:sdk && npm.cmd run build:next && npm.cmd run build:vue && npm.cmd run build:svelte && npm.cmd run build:angular && npm.cmd run build:browser",
     "security:audit": "node scripts/security-audit.mjs",
+    "cloudflare:build": "npm run build && npm --prefix server run prisma:generate:production",
+    "cloudflare:dev": "npx wrangler dev",
+    "cloudflare:deploy": "npx wrangler deploy",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit"

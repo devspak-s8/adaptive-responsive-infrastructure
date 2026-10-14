@@ -1,0 +1,37 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "adaptive-console",
+	"main": "./server/cloudflare.ts",
+	"compatibility_date": "2026-10-12",
+	"compatibility_flags": [
+		"nodejs_compat",
+		"nodejs_als"
+	],
+	"workers_dev": true,
+	"preview_urls": false,
+	"assets": {
+		"directory": "./dist",
+		"binding": "ASSETS",
+		"not_found_handling": "single-page-application",
+		"run_worker_first": [
+			"/api/*"
+		]
+	},
+	"build": {
+		"command": "npm run build && npm --prefix server run prisma:generate:production"
+	},
+	"hyperdrive": [
+		{
+			"binding": "HYPERDRIVE",
+			"id": "19ac62d64b684832b6071c3fdf0c859b"
+		}
+	],
+	"vars": {
+		"NEXTAUTH_URL": "https://adaptive-console.devspark015.workers.dev",
+		"API_PUBLIC_ORIGIN": "https://adaptive-console.devspark015.workers.dev",
+		"BACHS_API_BASE_URL": "https://api.bachs.io",
+		"AI_PROVIDER": "google",
+		"GOOGLE_AI_BASE_URL": "https://generativelanguage.googleapis.com/v1beta",
+		"GOOGLE_AI_MODEL": "gemini-2.5-flash"
+	}
+}

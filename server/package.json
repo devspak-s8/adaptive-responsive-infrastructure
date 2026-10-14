@@ -18,8 +18,10 @@
   "dependencies": {
     "@auth/express": "^0.12.3",
     "@auth/prisma-adapter": "^2.11.3",
+    "@prisma/adapter-pg": "^6.19.0",
     "@prisma/client": "^6.0.0",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",

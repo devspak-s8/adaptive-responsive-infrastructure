@@ -2,11 +2,21 @@
 
 The current workspace is a Vite React client, so these routes are intentionally called through same-origin `/api` endpoints. They must be implemented by the Node/Next server that hosts the app; the browser must not manufacture a session, subscription, usage count, or plan.
 
-Supabase is used only as the managed PostgreSQL host. Use its transaction-pooled PostgreSQL connection string as `DATABASE_URL`; the API automatically adds Prisma's `pgbouncer=true` compatibility flag for port `6543`. Use the direct/session connection in `DIRECT_URL` for migrations. Do not add Supabase Auth or expose a Supabase browser key. The Prisma schema lives in `server/prisma/schema.prisma` so the server's Prisma client and migrations use the same package boundary.
+Supabase is used only as the managed PostgreSQL host. The schema generates an
+engine-less Prisma client for the `workerd` runtime and the API always uses
+`@prisma/adapter-pg`: Hyperdrive supplies the Worker connection, while local
+Node uses `DATABASE_URL`. Keep `DIRECT_URL` for migrations and schema tooling.
+Do not add Supabase Auth or expose a Supabase browser key. The Prisma schema
+lives in `server/prisma/schema.prisma` so the server's client and migrations
+use the same package boundary.
 
 Set `API_PUBLIC_ORIGIN` to the externally reachable API origin in production (for example, `https://api.example.com`). The Setup & SDK page embeds this value in customer snippets; it must not be `localhost` for deployed customer sites. `NEXTAUTH_URL` remains the console origin used for Auth.js and billing callbacks.
 
-Server runtime dependencies are `@auth/express`, `@auth/prisma-adapter`, `express`, and `@prisma/client` (with `prisma` as a development dependency). Bachs is called over its server-side REST API and is kept out of the browser bundle.
+Server runtime dependencies are `@auth/express`, `@auth/prisma-adapter`,
+`@prisma/client`, `@prisma/adapter-pg`, `pg`, and `express` (with `prisma` as a
+development dependency). Run `npm run prisma:generate` after installing the
+server dependencies. Bachs is called over its server-side REST API and is kept
+out of the browser bundle.
 
 For the complete customer setup, published package list, production deployment
 checklist, runtime integration examples, and current plan limits, see the
