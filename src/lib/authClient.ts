@@ -73,10 +73,10 @@ export const signInWithGitHub = async (): Promise<void> => {
   // exposing provider responses to fetch/CORS handling in the client.
   const form = document.createElement('form');
   form.method = 'POST';
-  // Auth.js' canonical provider flow is POST /signin with the provider ID in
-  // the form body. Posting to /signin/github relies on path parsing and is
-  // fragile behind fetch-to-Express adapters and edge rewrites.
-  form.action = '/api/auth/signin';
+  // Auth.js resolves the provider from the URL path. The provider segment is
+  // required; a POST to /api/auth/signin without /github simply redirects
+  // back to the provider-selection page.
+  form.action = '/api/auth/signin/github';
   for (const [name, value] of Object.entries({ csrfToken, callbackUrl, provider: 'github' })) {
     const input = document.createElement('input');
     input.type = 'hidden'; input.name = name; input.value = value;
