@@ -1,0 +1,71 @@
+name: Deploy Cloudflare production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: adaptive-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 24 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+
+      - name: Install console dependencies
+        run: npm ci
+
+      - name: Install API dependencies
+        run: npm ci --prefix server
+
+      - name: Validate source and security boundaries
+        run: |
+          npm run lint
+          npm run security:audit
+          npm run check:runtime
+          npx tsc -p packages/adaptive-next/tsconfig.json
+          npx tsc -p packages/adaptive-vue/tsconfig.json
+          npx tsc -p packages/adaptive-svelte/tsconfig.json
+          npx tsc -p packages/adaptive-angular/tsconfig.json
+          npx tsc -p packages/adaptive-browser/tsconfig.json
+          npm --prefix server exec -- tsc --noEmit --pretty false
+
+      - name: Verify deployment secrets are present
+        shell: bash
+        run: |
+          test -n "${DATABASE_URL:-}" || (echo "DATABASE_URL GitHub secret is required" >&2; exit 1)
+          test -n "${DIRECT_URL:-}" || (echo "DIRECT_URL GitHub secret is required" >&2; exit 1)
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || (echo "CLOUDFLARE_API_TOKEN GitHub secret is required" >&2; exit 1)
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}" || (echo "CLOUDFLARE_ACCOUNT_ID GitHub secret is required" >&2; exit 1)
+
+      - name: Apply pending Prisma migrations
+        run: npm --prefix server run prisma:migrate:production
+
+      - name: Build console and Worker bundle
+        run: npm run cloudflare:build
+
+      - name: Deploy Worker and assets
+        run: npx --yes wrangler@4.151.0 deploy

@@ -203,6 +203,29 @@ temporary `workers.dev` hostname is enough to test; connect a custom domain
 only after `/api/health` returns JSON and the console loads from that same
 hostname.
 
+### Automatic production deploys
+
+The repository includes [`deploy-cloudflare.yml`](./.github/workflows/deploy-cloudflare.yml).
+Every push to `main` runs the checks, applies any pending Prisma migrations,
+builds the console and Worker, and deploys the Worker. Deployments are
+serialized so two pushes cannot run production migrations at the same time.
+
+Add these four **GitHub Actions repository secrets** under **Settings →
+Secrets and variables → Actions**:
+
+```text
+DATABASE_URL              # Supabase transaction pooler, usually port 6543
+DIRECT_URL                # Supabase direct/session migration connection
+CLOUDFLARE_API_TOKEN      # scoped to deploy Workers and assets
+CLOUDFLARE_ACCOUNT_ID     # the Cloudflare account containing adaptive-console
+```
+
+The workflow fails before migration if any are missing. Worker runtime secrets
+such as `AUTH_SECRET`, `GITHUB_SECRET`, `BACHS_API_KEY`, and
+`GOOGLE_AI_API_KEY` remain configured with `wrangler secret put`; they are not
+copied into GitHub Actions logs or browser code. The workflow does not publish
+the npm adapters.
+
 ## Runtime behavior
 
 The browser runtime records heartbeats and bounded events for viewport, route, DOM, CSSOM, overflow, wrapping, clipping, collisions, and layout mutations. Deterministic checks identify a new anomaly. When `GOOGLE_AI_API_KEY` is configured, the API sends bounded layout context to Gemini, validates the returned strategy against an allowlist, and returns at most one scoped adaptation. The runtime verifies the result immediately and rolls it back if the layout gets worse. Changes apply only to that visitor's session.
